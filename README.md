@@ -1,5 +1,7 @@
 # Sémantique 🌴
 
+🌐 **En ligne : https://semantique.flaaam.workers.dev**
+
 Trouve le mot secret grâce à la **température** : plus ton mot est proche du secret *par le sens*, plus il est chaud (100° = trouvé). Un **nouveau mot toutes les heures**. On peut jouer seul ou entre amis dans une **room**.
 
 Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantle](https://semantle.com/), avec une ergonomie revue.
@@ -15,10 +17,10 @@ Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantl
 | Un mot par heure, compte à rebours, archives (`?manche=N`) | ✅ fait |
 | Design rétro Miami, mobile d'abord, mode sombre | ✅ fait |
 | App installable (PWA) + page `/installer/` + icône | ✅ fait |
-| API sur Cloudflare Workers (Hono) + données sur R2 | ✅ fait, testé en local |
-| **Rooms** : serveur (Durable Object) | ✅ fait, testé en local |
+| API sur Cloudflare Workers (Hono) + données sur R2 | ✅ en ligne |
+| **Rooms** : serveur (Durable Object) | ✅ en ligne |
 | **Rooms** : interface (rejoindre, tableau en direct, classement, parcours) | ✅ fait, testé en local à 3 joueurs |
-| Mise en ligne sur Cloudflare | ⏳ à faire (compte connecté) |
+| Mise en ligne sur Cloudflare | ✅ https://semantique.flaaam.workers.dev |
 | Version anglaise | 🧩 préparée, pas branchée |
 | Classement général hors rooms (D1) | 💤 reporté |
 
@@ -90,22 +92,90 @@ Relancer le script de préparation garde le planning existant et ne fait qu'ajou
 
 ---
 
-## Mise en ligne (Cloudflare)
+## Déploiement
+
+**Production : https://semantique.flaaam.workers.dev** (Cloudflare Workers, offre gratuite)
+
+### Ce qui est déployé, et où
+
+| Élément | Où | Mis à jour par |
+|---|---|---|
+| Interface (`dist/` : HTML, JS, CSS, icônes, service worker) | *Static Assets* du Worker `semantique` | chaque push sur `main` (automatique) |
+| API `/api/*` (`server/app.ts`) | Worker `semantique` | chaque push sur `main` (automatique) |
+| Rooms (`server/room.ts`) | Durable Objects `Room` (SQLite) | chaque push sur `main` (automatique) |
+| Données du jeu (dictionnaire, planning, tables des manches) | R2 `semantique-data` | workflow manuel « Données du jeu » |
+
+Le site et l'API partagent la même adresse : le Worker répond lui-même à `/api/*` et laisse Cloudflare servir les fichiers de `dist/` pour tout le reste. Une adresse inconnue (`/room/XXXXX`…) renvoie `index.html`, ce qui laisse l'application gérer l'adresse.
+
+### Automatique : GitHub Actions
+
+- **`.github/workflows/deploy.yml`, « Vérifier et déployer »**
+  - à chaque **push sur `main`** : vérification des types, build, puis `wrangler deploy` (1 à 2 minutes) ;
+  - sur une **pull request** : vérification et build seulement, sans déploiement ;
+  - si les secrets Cloudflare manquent, le déploiement est ignoré avec un avertissement, sans faire échouer le workflow.
+- **`.github/workflows/data.yml`, « Données du jeu »** (lancement manuel : onglet *Actions*, puis *Run workflow*)
+  1. récupère le planning existant sur R2 (les mots déjà joués ne changent pas) ;
+  2. relance `pipeline/build.py` avec la graine secrète ;
+  3. renvoie les données sur R2.
+
+  À utiliser pour ajouter des manches (paramètre `rounds`, par exemple 4000), ou après une modification de `pipeline/` ou de la blocklist.
+
+### À faire une seule fois : les secrets GitHub
+
+Dans GitHub : **Settings → Secrets and variables → Actions → New repository secret**.
+
+| Secret | Valeur | Où la trouver |
+|---|---|---|
+| `CLOUDFLARE_API_TOKEN` | jeton d'API Cloudflare | dash.cloudflare.com → *My Profile* → *API Tokens* → *Create Token* → modèle **« Edit Cloudflare Workers »**, puis ajouter la permission **Account · Workers R2 Storage · Edit** |
+| `CLOUDFLARE_ACCOUNT_ID` | identifiant du compte | dash.cloudflare.com → *Workers & Pages* (colonne de droite, *Account ID*), ou `npx wrangler whoami` |
+| `SECRET_SEED` | contenu de `data/secret_seed` | sur ta machine : `pbcopy < data/secret_seed`. Ne le colle **nulle part ailleurs** : avec ce fichier, on peut retrouver tous les mots à venir. |
+
+Si la ligne de commande GitHub (`gh`) est installée et connectée, on peut aussi faire : `gh secret set SECRET_SEED < data/secret_seed`.
+
+### À la main, depuis ton poste
 
 ```sh
-npx wrangler login                 # déjà fait
-npx wrangler r2 bucket create semantique-data
-npm run seed:remote                # envoie les données sur R2
-npm run deploy                     # build + wrangler deploy
+npx wrangler login                          # une fois
+npx wrangler r2 bucket create semantique-data   # une fois (R2 doit être activé sur le compte)
+npm run seed:remote                         # envoie data/out/fr sur R2
+npm run deploy                              # build + wrangler deploy
 ```
 
-Offre gratuite : les manches sont précalculées, donc le Worker ne fait que lire (pas de calcul lourd). Les rooms reposent sur des Durable Objects SQLite, inclus dans l'offre gratuite.
+### Exploitation
+
+- **Logs en direct :** `npx wrangler tail`, ou le tableau de bord du Worker (*Observability* est activé).
+- **Revenir à la version précédente :** `npx wrangler rollback` (ou *Deployments* dans le tableau de bord). Ça ne touche ni les données R2 ni les rooms.
+- **Modifier la classe `Room` :** si on la renomme ou la supprime, il faut ajouter une entrée dans `migrations` de `wrangler.jsonc`. Ajouter des tables ou des colonnes ne demande rien : c'est géré dans le constructeur avec `CREATE TABLE IF NOT EXISTS`.
+- **Coût :** offre gratuite de Workers (100 000 requêtes/jour), R2 (10 Go, environ 230 Mo utilisés) et Durable Objects SQLite. Les manches étant précalculées, le Worker ne fait que lire et reste sous la limite de 10 ms de calcul par requête.
+
+### Que contient le stockage R2 (`semantique-data`) ?
+
+Le stockage R2 contient les mêmes fichiers que `data/out/fr/`, 25 au total. Les fichiers **`.bin`** sont des fichiers **binaires** : de simples suites de nombres, sans texte ni JSON, donc illisibles dans un éditeur. Ce n'est ni une erreur ni une archive.
+
+| Fichier | Taille | Contenu |
+|---|---|---|
+| `fr/public/meta.json` | 1 Ko | date de début, durée d'une manche (3600 s), taille du vocabulaire, version |
+| `fr/public/vocab.txt` | 280 Ko | les ≈ 28 800 mots jouables, un par ligne ; le numéro de ligne sert d'identifiant du mot |
+| `fr/public/forms.json` | 1,8 Mo | formes fléchies et version sans accents, vers l'identifiant du mot (*chevaux* → *cheval*) |
+| `fr/public/vec.bin` | 1,3 Mo | pour chaque mot, 48 petits nombres (son « sens » compressé) : sert à regrouper tes essais en **pistes** |
+| `fr/private/schedule.json` | 23 Ko | 🔒 le mot secret de chaque manche, dans l'ordre |
+| `fr/private/rounds/0000.bin` … `0019.bin` | 11,5 Mo chacun | 🔒 les **réponses précalculées** de 100 manches (voir ci-dessous) |
+
+**Pourquoi `rounds/*.bin` ?** Pour chaque manche, il faut connaître à l'avance, pour *chacun* des 28 800 mots, sa proximité avec le mot secret et son rang. C'est ce qui donne la température quand tu proposes un mot. Le Worker gratuit n'a droit qu'à 10 ms de calcul par requête, donc ces tables sont calculées une fois pour toutes par le script de préparation, puis rangées ainsi :
+
+- un fichier = 100 manches à la suite ;
+- une manche = 28 800 similarités (entiers sur 2 octets, ×10000), puis 28 800 rangs (entiers sur 2 octets), soit 4 × 28 800 = 115 Ko ;
+- le Worker ne télécharge que les 115 Ko de la manche en cours (lecture partielle de R2), puis les garde en mémoire.
+
+En binaire, une manche pèse 115 Ko au lieu d'environ 1 Mo en JSON, et se lit instantanément (`Int16Array` / `Uint16Array`). Le dossier `private/` n'est jamais accessible depuis le navigateur. Seul le Worker le lit, ce qui garde les mots secrets à l'abri.
+
+20 fichiers × 100 manches = **2000 heures de jeu, soit environ 83 jours**. Pour aller plus loin : `pipeline/build.py fr --rounds 4000`, puis `npm run seed:remote`.
 
 ---
 
 ## Prochaines étapes
 
-1. Première mise en ligne, puis test de l'installation sur iPhone et Android.
+1. Tester l'installation sur iPhone et Android, et jouer une vraie room à plusieurs.
 2. Relecture de `pipeline/blocklist_fr.txt` (mots à ne jamais tirer).
 3. Version anglaise : écrire `english_lexicon` dans `pipeline/languages.py`, puis traduire l'interface.
 

@@ -38,7 +38,7 @@
   let top = $state<Omit<Guess, "input" | "n">[]>([]);
   let copied = $state(false);
   let now = $state(Date.now());
-  let inputEl: HTMLInputElement;
+  let inputEl = $state<HTMLInputElement>();
   let helpDialog: HTMLDialogElement;
   let statsDialog: HTMLDialogElement;
 
@@ -51,6 +51,7 @@
   let roomDialog: HTMLDialogElement;
   let joinCode = $state("");
   let joinName = $state("");
+  let roomName = $state("");
   let joinError = $state("");
   let joinBusy = $state(false);
   let disconnect: (() => void) | null = null;
@@ -175,12 +176,12 @@
     if (!name) return (joinError = "Choisis ton nom de joueur.");
     joinBusy = true;
     try {
-      const code = create ? (await createRoom(LANG)).code : cleanCode(joinCode);
+      const code = create ? (await createRoom(LANG, roomName)).code : cleanCode(joinCode);
       if (code.length !== 5) throw new Error("Le code fait 5 caractères.");
       const res = await joinRoom(LANG, code, name, savedSession(code)?.token);
       roomDialog.close();
       await enterRoom({ code, name: res.name, token: res.token });
-      toast(create ? `Room ${code} créée : invite tes potes !` : `Bienvenue dans la room ${code} 👋`);
+      toast(create ? `« ${snap?.name} » créée (code ${code}) : invite tes potes !` : `Bienvenue dans « ${snap?.name} » 👋`);
     } catch (e) {
       joinError = (e as Error).message;
     } finally {
@@ -201,7 +202,7 @@
   async function inviteRoom() {
     if (!session) return;
     const url = `${location.origin}/room/${session.code}`;
-    const text = `Viens jouer à Sémantique dans ma room ${session.code} 🌴`;
+    const text = `Viens jouer à Sémantique dans la room « ${snap?.name ?? session.code} » (code ${session.code}) 🌴`;
     try {
       if (navigator.share && matchMedia("(pointer: coarse)").matches) await navigator.share({ text, url });
       else {
@@ -351,11 +352,10 @@
     <svg class="palm" viewBox="0 0 64 96" aria-hidden="true"><path d="M33 94c-2-22 0-44 4-60" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M37 34c-10-12-24-12-34-4 12-2 22 0 34 4zM37 34c4-14 16-22 26-20-12 4-20 10-26 20zM37 34c-14 0-24 8-28 18 8-8 18-12 28-18zM37 34c12-4 22 2 26 10-8-6-16-8-26-10zM37 34c-2-12-10-22-20-26 10 8 16 16 20 26z" fill="currentColor"/></svg>
     <div class="brand">
       <h1>Sémantique</h1>
-      {#if meta}<span class="day">mot de {roundLabel(round)}</span>{/if}
+      {#if meta}<span class="day">mot de {roundLabel(round)} <span class="sep">·</span> <span class="timer" title="Prochain mot dans">⏱ {countdown}</span></span>{/if}
     </div>
     <div class="header-actions">
-      {#if meta}<span class="timer" title="Prochain mot dans">⏱ {countdown}</span>{/if}
-      {#if !isStandalone()}<a class="icon" href="/installer/" aria-label="Installer l'app" title="Installer l'app">📲</a>{/if}
+      {#if !isStandalone()}<a class="icon install" href="/installer/" aria-label="Installer l'app" title="Installer l'app">📲</a>{/if}
       <button class="icon" class:active={!!session} onclick={() => (session ? document.querySelector(".board")?.scrollIntoView({ behavior: "smooth" }) : openRoomDialog())} aria-label="Rooms" title="Jouer en room">👥</button>
       <button class="icon" onclick={() => statsDialog.showModal()} aria-label="Statistiques">📊</button>
       <button class="icon" onclick={() => helpDialog.showModal()} aria-label="Comment jouer">?</button>
@@ -452,11 +452,11 @@
     </section>
 
     {#if game.guesses.length}
-      <nav class="tabs" role="tablist">
+      <div class="tabs" role="tablist">
         <button role="tab" aria-selected={view === "rank"} onclick={() => (view = "rank")}>classement</button>
         <button role="tab" aria-selected={view === "tracks"} onclick={() => (view = "tracks")}>pistes</button>
         <button role="tab" aria-selected={view === "time"} onclick={() => (view = "time")}>historique</button>
-      </nav>
+      </div>
 
       {#if view === "tracks"}
         <p class="muted small hint-text">Tes essais regroupés par thème : creuse les pistes chaudes, oublie les froides.</p>
@@ -554,8 +554,14 @@
     {#if joinError}<p class="err">{joinError}</p>{/if}
     <button class="go wide" type="submit" disabled={joinBusy || joinCode.length !== 5}>rejoindre la room</button>
   </form>
-  <div class="or"><span>ou</span></div>
-  <button class="pill wide-pill" onclick={() => submitJoin(true)} disabled={joinBusy}>✨ créer une room</button>
+  <div class="or"><span>ou crée la tienne</span></div>
+  <form onsubmit={(e) => { e.preventDefault(); submitJoin(true); }}>
+    <label>
+      <span>Nom de la room <span class="muted">(facultatif)</span></span>
+      <input bind:value={roomName} maxlength="30" placeholder="ex. Les Flamants roses" autocomplete="off" />
+    </label>
+    <button class="pill wide-pill" type="submit" disabled={joinBusy}>✨ créer la room</button>
+  </form>
 </dialog>
 
 <div class="toasts" aria-live="polite">
@@ -581,7 +587,7 @@
   .page { max-width: 520px; margin: 0 auto; padding: 0 16px calc(48px + env(safe-area-inset-bottom)); }
 
   /* ---------- header: neon sign over a striped sunset ---------- */
-  header { position: relative; display: flex; align-items: center; gap: 0.75rem; padding: 22px 0 14px; }
+  header { position: relative; display: flex; align-items: center; gap: 0.5rem; padding: 22px 0 14px; }
   .sun {
     position: absolute; left: 50%; top: 4px; width: 132px; height: 132px; translate: -50% 0; z-index: -1;
     border-radius: 50%;
@@ -589,8 +595,8 @@
     mask-image: linear-gradient(180deg, black 52%, transparent 52% 58%, black 58% 66%, transparent 66% 71%, black 71% 78%, transparent 78% 82%, black 82% 88%, transparent 88%);
     opacity: 0.85;
   }
-  .palm { position: absolute; right: -6px; top: 6px; width: 46px; color: var(--purple); opacity: 0.25; z-index: -1; rotate: 8deg; }
-  .brand { flex: 1; display: flex; flex-direction: column; align-items: flex-start; }
+  .palm { position: absolute; right: 0; top: 6px; width: 46px; color: var(--purple); opacity: 0.25; z-index: -1; rotate: 8deg; }
+  .brand { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
   h1 {
     font-family: var(--script); font-weight: 400; font-size: 2.9rem; line-height: 1; margin: 0;
     color: var(--pink); rotate: -4deg; padding: 0 0.15em;
@@ -601,11 +607,10 @@
     background: var(--teal); color: #10233a; padding: 0.15rem 0.55rem; border-radius: 4px; margin: 0.35rem 0 0 1.4rem; rotate: 3deg;
     box-shadow: var(--shadow-sm);
   }
-  .header-actions { display: flex; gap: 0.5rem; align-items: center; }
-  .timer {
-    font-family: var(--mono); font-size: 0.8rem; font-weight: 700; padding: 0.25rem 0.55rem; border-radius: 99px;
-    background: var(--ink); color: var(--panel); white-space: nowrap;
-  }
+  .header-actions { display: flex; gap: 0.4rem; align-items: center; flex: none; }
+  .day { white-space: nowrap; }
+  .sep { opacity: 0.6; }
+  .timer { font-variant-numeric: tabular-nums; }
   .banner {
     display: flex; gap: 0.5rem; align-items: center; justify-content: center; width: 100%; margin-bottom: 8px;
     background: linear-gradient(90deg, var(--sun-a), var(--pink)); color: #2a1440; font-weight: 600;
@@ -619,6 +624,13 @@
   }
   .icon:active { translate: 2px 2px; box-shadow: none; }
   a.icon { display: grid; place-items: center; text-decoration: none; }
+  /* phones: 3 round buttons max; install is reachable from the help dialog */
+  @media (max-width: 480px) {
+    .icon.install { display: none; }
+    .icon { width: 2.3rem; height: 2.3rem; font-size: 0.95rem; }
+    h1 { font-size: 2.45rem; }
+    .day { margin-left: 0.9rem; font-size: 0.66rem; letter-spacing: 0.08em; }
+  }
   .page { padding-top: env(safe-area-inset-top); }
 
   /* ---------- sticky console ---------- */

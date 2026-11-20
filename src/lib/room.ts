@@ -12,6 +12,7 @@ export interface PlayerRound {
 
 export interface Snapshot {
   code: string;
+  name: string;
   round: number;
   players: { name: string; online: boolean; now: PlayerRound | null; points: number; wins: number }[];
 }
@@ -54,7 +55,7 @@ async function call<T>(lang: string, path: string, body?: unknown): Promise<T> {
 
 export const cleanCode = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
 
-export const createRoom = (lang: string) => call<{ code: string }>(lang, "", {});
+export const createRoom = (lang: string, name: string) => call<{ code: string }>(lang, "", { name });
 export const joinRoom = (lang: string, code: string, name: string, token?: string) =>
   call<{ token: string; name: string }>(lang, `/${code}/join`, { name, token });
 export const roomState = (lang: string, code: string) => call<Snapshot>(lang, `/${code}`);

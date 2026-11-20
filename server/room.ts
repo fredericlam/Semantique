@@ -23,6 +23,7 @@ export interface PlayerRound {
 
 export interface Snapshot {
   code: string;
+  name: string;
   round: number;
   players: { name: string; online: boolean; now: PlayerRound | null; points: number; wins: number }[];
 }
@@ -108,7 +109,8 @@ export class Room extends DurableObject<Env> {
         points: points.get(p.key) ?? 0,
         wins: wins.get(p.key) ?? 0,
       }));
-    return { code: this.meta("code") ?? "", round, players };
+    const code = this.meta("code") ?? "";
+    return { code, name: this.meta("name") || `Room ${code}`, round, players };
   }
 
   private async broadcast() {
@@ -129,10 +131,11 @@ export class Room extends DurableObject<Env> {
 
   // ------------------------------------------------------------------ RPC
 
-  async create(code: string, lang: string): Promise<boolean> {
+  async create(code: string, lang: string, name = ""): Promise<boolean> {
     if (this.meta("lang")) return false;
     this.setMeta("lang", lang);
     this.setMeta("code", code);
+    this.setMeta("name", name.normalize("NFC").trim().replace(/\s+/g, " ").slice(0, 30));
     this.setMeta("created", String(Date.now()));
     this.touch();
     return true;

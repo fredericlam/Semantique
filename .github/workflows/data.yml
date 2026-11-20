@@ -1,0 +1,72 @@
+# Régénère les données du jeu et les envoie sur R2. Lancement manuel uniquement
+# (onglet Actions → « Données du jeu » → Run workflow), par exemple pour ajouter des manches
+# ou après une modification de pipeline/ ou de la blocklist.
+name: Données du jeu
+
+on:
+  workflow_dispatch:
+    inputs:
+      rounds:
+        description: "Nombre total de manches à planifier (1 manche = 1 heure)"
+        required: true
+        default: "2000"
+      lang:
+        description: "Langue"
+        required: true
+        default: "fr"
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+jobs:
+  data:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      LANG_CODE: ${{ inputs.lang }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: npm ci
+      - run: pip install -r requirements.txt
+
+      - name: Graine secrète du tirage
+        env:
+          SECRET_SEED: ${{ secrets.SECRET_SEED }}
+        run: |
+          if [ -z "$SECRET_SEED" ]; then echo "::error::secret SECRET_SEED manquant (contenu de data/secret_seed)"; exit 1; fi
+          mkdir -p data && printf '%s' "$SECRET_SEED" > data/secret_seed
+
+      - name: Récupérer le planning existant (les mots déjà joués ne bougent pas)
+        run: |
+          mkdir -p "data/out/$LANG_CODE/private"
+          npx wrangler r2 object get "semantique-data/$LANG_CODE/private/schedule.json" --remote \
+            --file "data/out/$LANG_CODE/private/schedule.json" \
+            || echo "::warning::pas de planning existant, il sera créé"
+
+      - name: Cache des données brutes (~270 Mo)
+        uses: actions/cache@v4
+        with:
+          path: data/raw
+          key: raw-${{ inputs.lang }}-${{ hashFiles('pipeline/languages.py') }}
+
+      - name: Construire
+        run: python pipeline/build.py "$LANG_CODE" --rounds "${{ inputs.rounds }}"
+
+      - name: Envoyer sur R2
+        run: node scripts/seed.mjs --remote "$LANG_CODE"
+
+      - name: Résumé
+        run: |
+          echo "### Données $LANG_CODE envoyées sur R2" >> "$GITHUB_STEP_SUMMARY"
+          python -c "import json;m=json.load(open('data/out/$LANG_CODE/public/meta.json'));print(f\"- {m['rounds']} manches, {m['vocabSize']} mots, version {m['version']}\")" >> "$GITHUB_STEP_SUMMARY"
+          git diff --stat -- "data/out/$LANG_CODE/public" >> "$GITHUB_STEP_SUMMARY" || true

@@ -25,13 +25,15 @@
   <span class="tape" aria-hidden="true"></span>
   <header>
     <div class="title">
-      <span class="kicker">room</span>
-      <span class="code">{snap.code}</span>
-      <span class="dot" class:on={connected} title={connected ? "en direct" : "reconnexion…"}></span>
-    </div>
-    <div class="actions">
-      <button class="mini" onclick={onshare}>🔗 inviter</button>
-      <button class="mini ghost" onclick={onleave} aria-label="Quitter la room">quitter</button>
+      <span class="room-name">{snap.name}</span>
+      <span class="meta-line">
+        <span class="dot" class:on={connected} title={connected ? "en direct" : "reconnexion…"}></span>
+        <span class="kicker">code</span> <span class="code">{snap.code}</span>
+        <span class="actions">
+          <button class="mini" onclick={onshare}>🔗 inviter</button>
+          <button class="mini ghost" onclick={onleave} aria-label="Quitter la room">quitter</button>
+        </span>
+      </span>
     </div>
   </header>
 
@@ -83,14 +85,16 @@
     background: repeating-linear-gradient(45deg, var(--tape) 0 8px, color-mix(in srgb, var(--tape) 70%, white) 8px 16px);
   }
   header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.6rem; }
-  .title { display: flex; align-items: center; gap: 0.45rem; }
+  .title { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; flex: 1; }
+  .room-name { font-family: var(--script); font-size: 1.7rem; line-height: 1.05; color: var(--pink); text-shadow: 1px 1px 0 var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta-line { display: flex; align-items: center; gap: 0.35rem; }
   .kicker { font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--muted); }
-  .code { font-family: var(--mono); font-weight: 700; font-size: 1.25rem; letter-spacing: 0.12em; color: var(--pink); }
+  .code { font-family: var(--mono); font-weight: 700; font-size: 0.95rem; letter-spacing: 0.12em; }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
   .dot.on { background: #22c55e; box-shadow: 0 0 8px #22c55e; animation: blink 2s infinite; }
   @keyframes blink { 50% { opacity: 0.5; } }
-  .actions { display: flex; gap: 0.35rem; }
-  .mini { background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 99px; padding: 0.2rem 0.65rem; font-size: 0.8rem; font-weight: 700; }
+  .actions { display: flex; gap: 0.35rem; margin-left: auto; }
+  .mini { white-space: nowrap; background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 99px; padding: 0.2rem 0.65rem; font-size: 0.8rem; font-weight: 700; }
   .mini.ghost { background: var(--panel); color: var(--ink); }
 
   .seg { display: flex; gap: 3px; padding: 3px; background: var(--panel-2); border-radius: 99px; margin-bottom: 0.5rem; }

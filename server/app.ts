@@ -92,10 +92,11 @@ export function createApp() {
   // ---------------------------------------------------------------- rooms
 
   app.post("/:lang/rooms", async (c) => {
+    const { name } = await c.req.json<{ name?: string }>().catch(() => ({} as { name?: string }));
     for (let i = 0; i < 6; i++) {
       const code = newCode();
       const stub = c.env.ROOMS.get(c.env.ROOMS.idFromName(code));
-      if (await stub.create(code, c.get("L").meta.lang)) return c.json({ code }, 201);
+      if (await stub.create(code, c.get("L").meta.lang, String(name ?? ""))) return c.json({ code }, 201);
     }
     return c.json({ error: "no free code" }, 500);
   });
