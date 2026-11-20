@@ -10,7 +10,7 @@ Outputs (data/out/<lang>/):
     vec.bin        int8 [V x D] reduced vectors (grouping / 2D map of guesses)
   private/  — server only
     schedule.json  start, period, round number -> secret word (stable across re-runs; only appended)
-    vectors.f32    float32 [V x dims] normalised vectors; the server scores each round from them
+    rounds/NNNN.bin CHUNK rounds per file; each round = int16[V] similarity*10000 + uint16[V] rank (0 = secret)
 """
 from __future__ import annotations
 
@@ -33,6 +33,7 @@ from languages import LANGUAGES, ROOT, Language
 from w2v import load_word2vec
 
 REDUCED_DIMS = 48
+CHUNK = 100  # rounds per table file
 # The secret-word draw must not be reproducible from the (public) source code:
 # its seed lives in an untracked file, created randomly on first build.
 SEED_FILE = ROOT / "data" / "secret_seed"
@@ -187,10 +188,7 @@ def main() -> None:
     R /= np.linalg.norm(R, axis=1, keepdims=True)
     (pub / "vec.bin").write_bytes(np.clip(np.round(R * 127), -127, 127).astype(np.int8).tobytes())
 
-    print("5/5 schedule + server vectors")
-    # One secret word per round (default: one round per hour). The server computes each round's
-    # similarity table on demand from these vectors — precomputing 24 tables/day would be ~1 GB/year.
-    (priv / "vectors.f32").write_bytes(M.astype("<f4").tobytes())
+    print("5/5 schedule + round tables")
     sched_path = priv / "schedule.json"
     sched = json.loads(sched_path.read_text()) if sched_path.exists() else None
     if sched:
@@ -203,9 +201,28 @@ def main() -> None:
     secrets = pick_secrets(lang, vocab, freq, pos, args.rounds, existing)
     sched_path.write_text(json.dumps({"start": start, "period": period, "words": secrets}, ensure_ascii=False, indent=0))
 
+    # Round tables, precomputed so the server only reads (Workers free plan: 10 ms CPU per request).
+    # Packed CHUNK rounds per file; the server range-reads the 4·V bytes of one round.
+    index = {w: i for i, w in enumerate(vocab)}
+    rounds_dir = priv / "rounds"
+    rounds_dir.mkdir(exist_ok=True)
+    V = len(vocab)
+    for c0 in range(0, len(secrets), CHUNK):
+        parts = []
+        for w in secrets[c0:c0 + CHUNK]:
+            sims = M @ M[index[w]]
+            sims[index[w]] = 2.0  # secret always first
+            ranks = np.empty(V, dtype=np.uint16)
+            ranks[np.argsort(-sims, kind="stable")] = np.arange(V, dtype=np.uint16)
+            sims[index[w]] = 1.0
+            parts.append(np.clip(np.round(sims * 10000), -10000, 10000).astype("<i2").tobytes())
+            parts.append(ranks.astype("<u2").tobytes())
+        (rounds_dir / f"{c0 // CHUNK:04d}.bin").write_bytes(b"".join(parts))
+    print(f"  {len(secrets)} round tables in {-(-len(secrets) // CHUNK)} files")
+
     meta = {
         "lang": lang.code, "timezone": lang.timezone,
-        "start": start, "period": period, "rounds": len(secrets),
+        "start": start, "period": period, "rounds": len(secrets), "chunk": CHUNK,
         "vocabSize": len(vocab), "dims": int(M.shape[1]), "vecDims": REDUCED_DIMS,
         "credits": lang.credits,
         # cache-busting key for public files; changes whenever the vocabulary does

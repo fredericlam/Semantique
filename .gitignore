@@ -5,3 +5,4 @@ __pycache__/
 data/secret_seed
 node_modules/
 dist/
+.wrangler/
