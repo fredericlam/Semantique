@@ -17,7 +17,7 @@ Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantl
 | App installable (PWA) + page `/installer/` + icône | ✅ fait |
 | API sur Cloudflare Workers (Hono) + données sur R2 | ✅ fait, testé en local |
 | **Rooms** : serveur (Durable Object) | ✅ fait, testé en local |
-| **Rooms** : interface (rejoindre, tableau en direct, classement) | 🚧 en cours |
+| **Rooms** : interface (rejoindre, tableau en direct, classement, parcours) | ✅ fait, testé en local à 3 joueurs |
 | Mise en ligne sur Cloudflare | ⏳ à faire (compte connecté) |
 | Version anglaise | 🧩 préparée, pas branchée |
 | Classement général hors rooms (D1) | 💤 reporté |
@@ -29,7 +29,7 @@ Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantl
 - **Indices progressifs** : d'abord un mot du top 1000, puis à chaque fois un mot environ 4 fois plus proche que ton meilleur essai. Au rang 1, plus d'indice.
 - **Pistes** : tes essais sont regroupés automatiquement par thème.
 - **Abandonner** ne révèle le mot qu'à la fin de l'heure, pour ne pas fausser la compétition dans les rooms.
-- **Rooms** : un code de 5 caractères (sans O/0 ni I/1) et un pseudo, refusé s'il est déjà pris dans la room. Tout le monde joue le mot de l'heure. La progression des autres s'affiche en direct, sans leurs mots. Points par manche : 5 / 3 / 2 pour les trois premiers à trouver, puis 1, avec +1 si aucun indice n'a été utilisé. Une room s'efface après 30 jours sans activité.
+- **Rooms** : un code de 5 caractères (sans O/0 ni I/1) et un pseudo, refusé s'il est déjà pris dans la room. Tout le monde joue le mot de l'heure. La progression des autres s'affiche en direct, sans leurs mots. Points par manche : 5 / 3 / 2 pour les trois premiers à trouver, puis 1, avec +1 si aucun indice n'a été utilisé. Une room s'efface après 30 jours sans activité. On la rejoint par le bouton 👥 ou par un lien `/room/CODE` ; en rouvrant l'app, on retrouve automatiquement sa dernière room.
 
 ---
 
@@ -105,10 +105,9 @@ Offre gratuite : les manches sont précalculées, donc le Worker ne fait que lir
 
 ## Prochaines étapes
 
-1. Interface des rooms : bouton « Rejoindre la room », tableau des joueurs en direct, classement, parcours de chacun en fin de manche.
-2. Première mise en ligne, puis test de l'installation sur iPhone et Android.
-3. Relecture de `pipeline/blocklist_fr.txt` (mots à ne jamais tirer).
-4. Version anglaise : écrire `english_lexicon` dans `pipeline/languages.py`, puis traduire l'interface.
+1. Première mise en ligne, puis test de l'installation sur iPhone et Android.
+2. Relecture de `pipeline/blocklist_fr.txt` (mots à ne jamais tirer).
+3. Version anglaise : écrire `english_lexicon` dans `pipeline/languages.py`, puis traduire l'interface.
 
 ## Crédits
 

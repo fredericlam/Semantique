@@ -2,6 +2,11 @@
   import { onMount, tick } from "svelte";
   import { isStandalone } from "./lib/pwa.ts";
   import GuessRow from "./GuessRow.svelte";
+  import RoomBoard from "./RoomBoard.svelte";
+  import {
+    cleanCode, connect, createRoom, joinRoom, lastName, lastRoom, roomGiveUp, roomGuess, roomHint, roomMine, roomReveal,
+    roomState, savedSession, saveSession, type RoomGuess, type Session, type Snapshot,
+  } from "./lib/room.ts";
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, level, temperature } from "./lib/heat.ts";
   import {
@@ -37,6 +42,19 @@
   let helpDialog: HTMLDialogElement;
   let statsDialog: HTMLDialogElement;
 
+  // rooms
+  let session = $state<Session | null>(null);
+  let snap = $state<Snapshot | null>(null);
+  let connected = $state(false);
+  let roomWords = $state<{ name: string; guesses: RoomGuess[] }[]>([]);
+  let toasts = $state<{ id: number; text: string }[]>([]);
+  let roomDialog: HTMLDialogElement;
+  let joinCode = $state("");
+  let joinName = $state("");
+  let joinError = $state("");
+  let joinBusy = $state(false);
+  let disconnect: (() => void) | null = null;
+
   const tries = $derived(game.guesses.filter((g) => !g.hint).length);
   const hints = $derived(game.guesses.filter((g) => g.hint).length);
   const best = $derived(game.guesses.reduce<Guess | null>((b, g) => (!b || g.rank < b.rank ? g : b), null));
@@ -61,7 +79,14 @@
 
   async function openRound(n: number) {
     round = n;
-    game = loadState(LANG, n);
+    roomWords = [];
+    if (session) {
+      // in a room the server is the source of truth (and lets you switch devices)
+      const mine = await roomMine(LANG, session, n);
+      game = { guesses: mine.guesses.map((g) => ({ ...g, input: "" })), status: mine.status };
+    } else {
+      game = loadState(LANG, n);
+    }
     // drop duplicates left by older versions
     game.guesses = game.guesses.filter((g, i, all) => all.findIndex((o) => o.word === g.word) === i);
     last = game.guesses.find((g) => g.n === game.guesses.length) ?? null;
@@ -84,8 +109,22 @@
       try {
         meta = await fetchMeta(LANG);
         lex = await loadLexicon(LANG, meta.vecDims, meta.version);
-        const asked = Number(new URLSearchParams(location.search).get("manche"));
-        await openRound(asked >= 1 && asked <= meta.current ? asked : meta.current);
+        const fromPath = location.pathname.match(/^\/room\/([A-Za-z0-9]{5})\/?$/)?.[1]?.toUpperCase();
+        const code = fromPath ?? lastRoom();
+        const saved = code ? savedSession(code) : null;
+        if (saved) {
+          try {
+            const ok = await joinRoom(LANG, saved.code, saved.name, saved.token);
+            await enterRoom({ ...saved, name: ok.name });
+          } catch {
+            saveSession(null, saved.code);
+          }
+        }
+        if (!session) {
+          const asked = Number(new URLSearchParams(location.search).get("manche"));
+          await openRound(asked >= 1 && asked <= meta.current ? asked : meta.current);
+          if (fromPath) openRoomDialog(fromPath);
+        }
         if (!localStorage.getItem("semantique:seen-help")) {
           helpDialog.showModal();
           localStorage.setItem("semantique:seen-help", "1");
@@ -94,16 +133,93 @@
         loadError = String((e as Error).message ?? e);
       }
     })();
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      disconnect?.();
+    };
   });
 
+  // ---------------------------------------------------------------- rooms
+
+  function toast(text: string) {
+    const id = Math.random();
+    toasts.push({ id, text });
+    setTimeout(() => (toasts = toasts.filter((t) => t.id !== id)), 4500);
+  }
+
+  function openRoomDialog(code = "") {
+    joinCode = code;
+    joinName = joinName || lastName();
+    joinError = "";
+    roomDialog.showModal();
+  }
+
+  async function enterRoom(s: Session) {
+    disconnect?.();
+    session = s;
+    saveSession(s);
+    history.replaceState(null, "", `/room/${s.code}`);
+    snap = await roomState(LANG, s.code);
+    disconnect = connect(LANG, s, {
+      snapshot: (x) => (snap = x),
+      event: toast,
+      status: (v) => (connected = v),
+    });
+    meta = await fetchMeta(LANG);
+    await openRound(meta.current);
+  }
+
+  async function submitJoin(create: boolean) {
+    joinError = "";
+    const name = joinName.trim();
+    if (!name) return (joinError = "Choisis ton nom de joueur.");
+    joinBusy = true;
+    try {
+      const code = create ? (await createRoom(LANG)).code : cleanCode(joinCode);
+      if (code.length !== 5) throw new Error("Le code fait 5 caractères.");
+      const res = await joinRoom(LANG, code, name, savedSession(code)?.token);
+      roomDialog.close();
+      await enterRoom({ code, name: res.name, token: res.token });
+      toast(create ? `Room ${code} créée : invite tes potes !` : `Bienvenue dans la room ${code} 👋`);
+    } catch (e) {
+      joinError = (e as Error).message;
+    } finally {
+      joinBusy = false;
+    }
+  }
+
+  async function leaveRoom() {
+    disconnect?.();
+    disconnect = null;
+    if (session) saveSession(null, session.code);
+    session = null;
+    snap = null;
+    history.replaceState(null, "", "/");
+    if (meta) await openRound(meta.current);
+  }
+
+  async function inviteRoom() {
+    if (!session) return;
+    const url = `${location.origin}/room/${session.code}`;
+    const text = `Viens jouer à Sémantique dans ma room ${session.code} 🌴`;
+    try {
+      if (navigator.share && matchMedia("(pointer: coarse)").matches) await navigator.share({ text, url });
+      else {
+        await navigator.clipboard.writeText(`${text}\n${url}`);
+        toast("Lien d'invitation copié 🔗");
+      }
+    } catch {}
+  }
+
   function persist() {
+    if (session) return; // the room keeps the state
     saveState(LANG, round, $state.snapshot(game) as GameState);
   }
 
   function add(g: Omit<Guess, "input" | "n">, typed: string, hint = false) {
     if (game.guesses.some((o) => o.id === g.id)) return;
     const guess: Guess = { ...g, input: typed && typed !== g.word ? typed : "", n: game.guesses.length + 1, ...(hint ? { hint } : {}) };
+    if ("n" in g && typeof g.n === "number") guess.n = g.n;
     game.guesses.push(guess);
     last = guess;
     if (guess.rank === 0) finish("won");
@@ -120,7 +236,14 @@
   async function loadTop() {
     if (game.status === "playing" || !meta) return;
     const found = game.guesses.find((g) => g.rank === 0)?.word;
-    if (found || round < meta.current) top = await fetchTop(LANG, round, found);
+    if (!found && round >= meta.current) return;
+    if (session) {
+      try {
+        const r = await roomReveal(LANG, session, round);
+        top = r.top;
+        roomWords = r.players.filter((p) => p.name !== session!.name);
+      } catch {}
+    } else top = await fetchTop(LANG, round, found);
   }
 
   // when the hour flips, a given-up round can finally show its word
@@ -147,11 +270,12 @@
     }
     busy = true;
     try {
-      add(await fetchGuess(LANG, round, res.word), clean(raw));
+      add(session ? await roomGuess(LANG, session, res.word) : await fetchGuess(LANG, round, res.word), clean(raw));
       if (res.alts.length) feedback = { kind: "alts", word: res.word, alts: res.alts.filter((a) => !game.guesses.some((g) => g.word === a)) };
       input = "";
     } catch (e) {
-      feedback = { kind: "error", message: "Le serveur ne répond pas, réessaie." };
+      feedback = { kind: "error", message: (e as Error).message || "Le serveur ne répond pas, réessaie." };
+      if (session && (e as { code?: string }).code === "finished") await openRound(round);
     } finally {
       busy = false;
       await tick();
@@ -171,7 +295,9 @@
     if (busy || over || target === null) return;
     busy = true;
     try {
-      add(await fetchHint(LANG, round, target), "", true);
+      add(session ? await roomHint(LANG, session) : await fetchHint(LANG, round, target), "", true);
+    } catch (e) {
+      feedback = { kind: "error", message: (e as Error).message };
     } finally {
       busy = false;
     }
@@ -184,12 +310,20 @@
       return;
     }
     confirmGiveUp = false;
+    if (session) {
+      try {
+        await roomGiveUp(LANG, session);
+      } catch (e) {
+        feedback = { kind: "error", message: (e as Error).message };
+        return;
+      }
+    }
     await finish("gaveup");
   }
 
   function shareText() {
     const counts = LEVELS.slice(1).map((l) => [l, game.guesses.filter((g) => !g.hint && level(g.rank) === l).length] as const);
-    const label = `Sémantique 🌴 mot de ${roundLabel(round)}`;
+    const label = `Sémantique 🌴 mot de ${roundLabel(round)}${session ? ` · room ${session.code}` : ""}`;
     const head = game.status === "won"
       ? `${label} — 🎯 en ${tries} essai${tries > 1 ? "s" : ""}${hints ? ` (${hints} 💡)` : ""}`
       : `${label} — 🏳️ abandon, meilleur ${best && meta ? temperature(best.rank, meta.vocabSize).toFixed(1) : "0"}°`;
@@ -222,6 +356,7 @@
     <div class="header-actions">
       {#if meta}<span class="timer" title="Prochain mot dans">⏱ {countdown}</span>{/if}
       {#if !isStandalone()}<a class="icon" href="/installer/" aria-label="Installer l'app" title="Installer l'app">📲</a>{/if}
+      <button class="icon" class:active={!!session} onclick={() => (session ? document.querySelector(".board")?.scrollIntoView({ behavior: "smooth" }) : openRoomDialog())} aria-label="Rooms" title="Jouer en room">👥</button>
       <button class="icon" onclick={() => statsDialog.showModal()} aria-label="Statistiques">📊</button>
       <button class="icon" onclick={() => helpDialog.showModal()} aria-label="Comment jouer">?</button>
     </div>
@@ -232,6 +367,12 @@
   {:else if !meta}
     <p class="loading">Chargement…</p>
   {:else}
+    {#if session && snap}
+      <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} onleave={leaveRoom} />
+    {:else}
+      <button class="room-cta" onclick={() => openRoomDialog()}>👥 <span>Défie tes potes : <strong>rejoins une room</strong></span> →</button>
+    {/if}
+
     {#if newWordReady || round !== meta.current}
       <button class="banner" onclick={goToLatest}>
         🌴 {newWordReady ? "Nouveau mot dispo !" : "Le mot de l'heure t'attend"} <strong>jouer →</strong>
@@ -348,6 +489,23 @@
       </div>
     {/if}
 
+    {#if over && roomWords.length}
+      <section class="others">
+        <h2>le parcours de la room</h2>
+        {#each roomWords as p (p.name)}
+          <div class="other">
+            <p class="other-name">{p.name} <span class="muted small">· {p.guesses.filter((g) => !g.hint).length} essais</span></p>
+            <p class="chips">
+              {#each p.guesses.slice(0, 12) as g (g.id)}
+                <span class="wchip" title={`n°${g.rank}`}>{level(g.rank).emoji} {g.word}{g.hint ? " 💡" : ""}</span>
+              {/each}
+              {#if p.guesses.length > 12}<span class="muted small">+{p.guesses.length - 12}</span>{/if}
+            </p>
+          </div>
+        {/each}
+      </section>
+    {/if}
+
     {#if over && top.length}
       <section class="top">
         <h2>les 100 plus proches</h2>
@@ -379,6 +537,30 @@
   <p>📲 <a href="/installer/">Installe-la sur ton téléphone</a>, comme une vraie app.</p>
   <form method="dialog"><button class="go wide">c'est parti 🌴</button></form>
 </dialog>
+
+<dialog bind:this={roomDialog} class="room-dialog" onclick={(e) => e.target === roomDialog && roomDialog.close()}>
+  <span class="tape" aria-hidden="true"></span>
+  <h2>jouer en room</h2>
+  <p class="muted small">Même mot de l'heure pour tout le monde, progression en direct, classement entre vous.</p>
+  <form onsubmit={(e) => { e.preventDefault(); submitJoin(false); }}>
+    <label>
+      <span>Joueur</span>
+      <input bind:value={joinName} maxlength="20" placeholder="ton nom" autocomplete="nickname" autocapitalize="words" required />
+    </label>
+    <label>
+      <span>Code de la room</span>
+      <input class="code-input" bind:value={joinCode} oninput={() => (joinCode = cleanCode(joinCode))} maxlength="5" placeholder="ex. PALM7" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+    </label>
+    {#if joinError}<p class="err">{joinError}</p>{/if}
+    <button class="go wide" type="submit" disabled={joinBusy || joinCode.length !== 5}>rejoindre la room</button>
+  </form>
+  <div class="or"><span>ou</span></div>
+  <button class="pill wide-pill" onclick={() => submitJoin(true)} disabled={joinBusy}>✨ créer une room</button>
+</dialog>
+
+<div class="toasts" aria-live="polite">
+  {#each toasts as t (t.id)}<div class="toast">{t.text}</div>{/each}
+</div>
 
 <dialog bind:this={statsDialog} onclick={(e) => e.target === statsDialog && statsDialog.close()}>
   <span class="tape" aria-hidden="true"></span>
@@ -543,6 +725,35 @@
   .stats div { display: flex; flex-direction: column; gap: 0.15rem; }
   .stats strong { font-family: var(--mono); font-size: 1.6rem; color: var(--pink); }
   .stats span { font-size: 0.7rem; color: var(--muted); }
+
+  .icon.active { background: var(--pink); color: white; }
+  .room-cta {
+    display: flex; align-items: center; gap: 0.6rem; width: 100%; margin: 4px 0 10px; padding: 0.55rem 0.9rem;
+    background: var(--panel); border: 2px dashed var(--line); border-radius: 14px; font-size: 0.9rem; text-align: left;
+  }
+  .room-cta span { flex: 1; }
+
+  .room-dialog form { display: grid; gap: 0.75rem; margin-top: 0.8rem; justify-content: stretch; }
+  .room-dialog label { display: grid; gap: 0.3rem; font-weight: 600; font-size: 0.85rem; }
+  .room-dialog input { box-shadow: var(--shadow-sm); font-size: 1.05rem; padding: 0.65rem 0.85rem; }
+  .code-input { font-family: var(--mono); letter-spacing: 0.3em; text-transform: uppercase; }
+  .room-dialog .go { width: 100%; padding: 0.8rem; }
+  .or { display: flex; align-items: center; gap: 0.6rem; margin: 1rem 0 0.7rem; color: var(--muted); font-size: 0.8rem; }
+  .or::before, .or::after { content: ""; flex: 1; height: 2px; background: var(--panel-2); }
+  .wide-pill { width: 100%; padding: 0.6rem; font-size: 0.95rem; }
+
+  .toasts { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); translate: -50% 0; z-index: 20; display: grid; gap: 0.4rem; width: min(420px, calc(100vw - 32px)); pointer-events: none; }
+  .toast {
+    background: var(--ink); color: var(--panel); border-radius: 12px; padding: 0.65rem 0.9rem; font-weight: 600; font-size: 0.92rem;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.25); animation: pop 0.35s cubic-bezier(.2,.9,.3,1.3);
+  }
+  @keyframes pop { from { translate: 0 20px; opacity: 0; scale: 0.9; } }
+
+  .others h2 { font-family: var(--script); font-weight: 400; font-size: 2rem; color: var(--pink); margin: 1.6rem 0 0.4rem; text-shadow: 1px 1px 0 var(--ink); }
+  .other { background: var(--panel); border: 2px solid var(--line); border-radius: 10px; padding: 0.5rem 0.7rem; margin-bottom: 0.6rem; }
+  .other-name { margin: 0 0 0.35rem; font-weight: 800; }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0; }
+  .wchip { background: var(--panel-2); border-radius: 99px; padding: 0.1rem 0.55rem; font-size: 0.82rem; }
 
   @media (max-width: 380px) {
     h1 { font-size: 2.4rem; }
