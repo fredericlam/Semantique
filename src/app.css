@@ -99,3 +99,25 @@ button { font: inherit; color: inherit; cursor: pointer; }
 button:disabled { cursor: default; opacity: 0.45; }
 :focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
 ::selection { background: var(--pink); color: white; }
+
+/* ---------- shared pieces (dialogs, tape, main button) used by several components ---------- */
+dialog {
+  position: fixed; border: 2px solid var(--line); border-radius: 6px; padding: 0.6rem 1.4rem 1.3rem; overflow: visible;
+  width: min(440px, calc(100vw - 32px)); background: var(--panel); color: var(--ink); box-shadow: var(--shadow); rotate: -0.6deg;
+}
+dialog::backdrop { background: rgb(42 20 64 / 0.45); backdrop-filter: blur(3px); }
+dialog h2 {
+  font-family: var(--script); font-weight: 400; font-size: 2rem; color: var(--pink);
+  margin: 0.8rem 0 0.4rem; text-shadow: 1px 1px 0 var(--ink);
+}
+.tape {
+  position: absolute; top: -12px; left: 50%; width: 96px; height: 24px; translate: -50% 0; rotate: -3deg;
+  background: repeating-linear-gradient(45deg, var(--tape) 0 8px, color-mix(in srgb, var(--tape) 70%, white) 8px 16px);
+  border-radius: 2px;
+}
+.go {
+  font-family: var(--mono); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.95rem;
+  background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 16px; padding: 0.8rem 1.2rem;
+  box-shadow: var(--shadow); cursor: pointer;
+}
+.go:not(:disabled):active { translate: 3px 3px; box-shadow: none; }

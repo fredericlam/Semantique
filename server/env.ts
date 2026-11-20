@@ -6,4 +6,6 @@ export interface Env {
   ROOMS: DurableObjectNamespace<Room>;
   DIRECTORY: DurableObjectNamespace<Directory>;
   ASSETS: Fetcher;
+  GITHUB_REPO?: string; // "owner/name", in wrangler.jsonc vars
+  GITHUB_TOKEN?: string; // secret: wrangler secret put GITHUB_TOKEN
 }

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { gameData, roundAt, roundStart, type Lang } from "./data.ts";
 import type { Env } from "./env.ts";
 import type { RoomError } from "./room.ts";
+import { createIssue, rateLimited, type BugReport } from "./bug.ts";
 
 const PUBLIC_FILES: Record<string, string> = {
   "vocab.txt": "text/plain; charset=utf-8",
@@ -23,6 +24,16 @@ type Vars = { L: Lang; n: number; current: number };
 
 export function createApp() {
   const app = new Hono<{ Bindings: Env; Variables: Vars }>().basePath("/api");
+
+  /** Bug report → GitHub issue. Registered before the /:lang middleware. */
+  app.post("/bug", async (c) => {
+    const report = await c.req.json<BugReport>().catch(() => null);
+    const text = String(report?.text ?? "").trim();
+    if (text.length < 5 || text.length > 2000) return c.json({ error: "bad_text" }, 400);
+    if (rateLimited(c.req.header("cf-connecting-ip") ?? "local")) return c.json({ error: "too_many" }, 429);
+    const res = await createIssue(c.env, { text, context: report?.context });
+    return "url" in res ? c.json(res, 201) : c.json({ error: res.error, repo: c.env.GITHUB_REPO ?? null }, res.status as 502 | 503);
+  });
 
   /** Resolve :lang and ?round= (defaults to the current one; future rounds are refused). */
   app.use("/:lang/*", async (c, next) => {

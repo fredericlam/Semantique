@@ -134,6 +134,19 @@ Dans GitHub : **Settings → Secrets and variables → Actions → New repositor
 
 Si la ligne de commande GitHub (`gh`) est installée et connectée, on peut aussi faire : `gh secret set SECRET_SEED < data/secret_seed`.
 
+### Signalement de bugs (bouton 🐞 → issue GitHub)
+
+Le bouton « Un bug, une idée ? » (en bas de page) envoie le texte au Worker (`POST /api/bug`), qui crée une **issue GitHub** avec le libellé `bug`. Les joueurs n'ont pas besoin de compte GitHub.
+- Infos techniques jointes, si le joueur accepte : version, page, mode, manche, appareil. **Jamais** le code de room ni les mots joués : le dépôt est public.
+- Anti-spam : 3 signalements par quart d'heure et par adresse IP.
+- Le dépôt cible est défini dans `wrangler.jsonc`, variable `GITHUB_REPO`.
+
+À configurer une fois, sinon le bouton ouvre simplement le formulaire « New issue » de GitHub, pré-rempli :
+1. GitHub → *Settings* → *Developer settings* → *Fine-grained tokens* → *Generate new token* ;
+   - Repository access : **Only select repositories → Semantique** ;
+   - Permissions : **Issues → Read and write** (rien d'autre).
+2. `npx wrangler secret put GITHUB_TOKEN`, puis colle le jeton. Il reste chiffré chez Cloudflare et n'est jamais dans le code.
+
 ### À la main, depuis ton poste
 
 ```sh

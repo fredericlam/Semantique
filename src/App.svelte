@@ -4,6 +4,7 @@
   import GuessRow from "./GuessRow.svelte";
   import RoomBoard from "./RoomBoard.svelte";
   import RoomsPage from "./RoomsPage.svelte";
+  import BugDialog from "./BugDialog.svelte";
   import {
     cleanCode, connect, createRoom, joinRoom, lastName, lastRoom, roomGiveUp, roomGuess, roomHint, roomMine, roomResume,
     roomReveal, roomSetVisibility, roomState, savedSession, saveSession, type RoomGuess, type Session, type Snapshot, type Visibility,
@@ -59,6 +60,21 @@
   let joinError = $state("");
   let joinBusy = $state(false);
   let disconnect: (() => void) | null = null;
+  let bugDialog = $state<{ open: () => void }>();
+
+  /** Technical context for bug reports — never the room code nor the guessed words. */
+  const bugContext = () => ({
+    version: meta?.version ?? null,
+    page: page === "rooms" ? "/rooms" : session ? "/room/(masqué)" : "/",
+    mode: session ? "room" : "solo",
+    manche: round || null,
+    statut: game.status,
+    essais: game.guesses.length,
+    app_installée: isStandalone(),
+    écran: `${innerWidth}×${innerHeight}`,
+    navigateur: navigator.userAgent,
+    date: new Date().toISOString(),
+  });
 
   const tries = $derived(game.guesses.filter((g) => !g.hint).length);
   const hints = $derived(game.guesses.filter((g) => g.hint).length);
@@ -423,7 +439,11 @@
     {#if session && snap}
       <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} onleave={leaveRoom} ontogglevisibility={toggleVisibility} />
     {:else}
-      <button class="room-cta" onclick={() => goPage("rooms")}>👥 <span>Défie tes potes : <strong>rejoins une room</strong></span> →</button>
+      <button class="room-cta" onclick={() => goPage("rooms")}>
+        <span class="cta-emoji" aria-hidden="true">👥</span>
+        <span class="cta-text"><strong>Rejoins une room</strong><small>joue à plusieurs sur le mot de l'heure</small></span>
+        <span class="install-arrow" aria-hidden="true">→</span>
+      </button>
     {/if}
 
     {#if newWordReady || round !== meta.current}
@@ -574,6 +594,11 @@
     {/if}
 
     <footer>
+      <button class="bug-card" onclick={() => bugDialog?.open()}>
+        <span class="bug-emoji" aria-hidden="true">🐞</span>
+        <span><strong>Un bug, une idée ?</strong><small>Dis-le nous en deux mots</small></span>
+        <span class="install-arrow" aria-hidden="true">→</span>
+      </button>
       {#each meta.credits as c}<p>{c}</p>{/each}
     </footer>
   {/if}
@@ -645,6 +670,8 @@
     <button class="switch" onclick={() => ((dialogMode = "join"), (joinError = ""))}>🔑 j'ai déjà un code</button>
   {/if}
 </dialog>
+
+<BugDialog bind:this={bugDialog} context={bugContext} />
 
 <div class="toasts" aria-live="polite">
   {#each toasts as t (t.id)}<div class="toast">{t.text}</div>{/each}
@@ -822,16 +849,28 @@
 
   .icon.active { background: var(--pink); color: white; }
   .room-cta {
-    display: flex; align-items: center; gap: 0.6rem; width: 100%; margin: 4px 0 10px; padding: 0.55rem 0.9rem;
-    background: var(--panel); border: 2px dashed var(--line); border-radius: 14px; font-size: 0.9rem; text-align: left;
+    display: flex; align-items: center; gap: 0.75rem; width: 100%; margin: 4px 0 12px; padding: 0.6rem 0.9rem; text-align: left;
+    background: var(--panel); border: 2px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-sm); color: var(--ink);
+    rotate: -0.5deg; transition: translate 0.1s;
   }
-  .room-cta span { flex: 1; }
+  .room-cta:active { translate: 2px 2px; box-shadow: none; }
+  .cta-emoji { font-size: 1.5rem; }
+  .cta-text { flex: 1; display: grid; line-height: 1.25; }
+  .cta-text strong { font-size: 1rem; }
+  .cta-text small { color: var(--muted); font-size: 0.8rem; }
 
   .room-dialog form { display: grid; gap: 0.75rem; margin-top: 0.8rem; justify-content: stretch; }
   .room-dialog label { display: grid; gap: 0.3rem; font-weight: 600; font-size: 0.85rem; }
   .room-dialog input { box-shadow: var(--shadow-sm); font-size: 1.05rem; padding: 0.65rem 0.85rem; }
   .code-input { font-family: var(--mono); letter-spacing: 0.3em; text-transform: uppercase; }
   .room-dialog .go { width: 100%; padding: 0.8rem; }
+  .bug-card {
+    display: flex; align-items: center; gap: 0.75rem; width: 100%; margin: 0 0 1.2rem; padding: 0.6rem 0.85rem; text-align: left;
+    background: var(--panel); border: 2px dashed var(--line); border-radius: 16px; color: var(--ink); rotate: 0.5deg; font-size: 0.95rem;
+  }
+  .bug-card span:nth-child(2) { flex: 1; display: grid; line-height: 1.25; }
+  .bug-card small { color: var(--muted); font-size: 0.8rem; }
+  .bug-emoji { font-size: 1.6rem; }
   .install-card {
     display: flex; align-items: center; gap: 0.8rem; margin: 1rem 0 0.2rem; padding: 0.6rem 0.8rem;
     background: var(--panel-2); border: 2px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-sm);
