@@ -30,11 +30,13 @@ export interface Meta {
   defaultLevel: string;
 }
 
-export const LEVEL_INFO: Record<string, { label: string; emoji: string; hint: string }> = {
-  kid: { label: "kid", emoji: "🧒", hint: "7–11 ans : des mots concrets du quotidien" },
-  teen: { label: "teen", emoji: "🧑", hint: "ados : des mots courants" },
-  adult: { label: "adulte", emoji: "🧔", hint: "mots plus rares, plus abstraits" },
+/** icon: Phosphor icon (UI); emoji: same idea for plain text (share message). */
+export const LEVEL_INFO: Record<string, { label: string; icon: "backpack" | "headphones" | "coffee"; emoji: string; hint: string }> = {
+  kid: { label: "kid", icon: "backpack", emoji: "🎒", hint: "7–11 ans : des mots concrets du quotidien" },
+  teen: { label: "teen", icon: "headphones", emoji: "🎧", hint: "ados : des mots courants" },
+  adult: { label: "adulte", icon: "coffee", emoji: "☕", hint: "mots plus rares, plus abstraits" },
 };
+/** Plain-text label, with emoji (share message). */
 export const levelLabel = (l: string) => `${LEVEL_INFO[l]?.emoji ?? ""} ${LEVEL_INFO[l]?.label ?? l}`.trim();
 
 // ------------------------------------------------------------------ API

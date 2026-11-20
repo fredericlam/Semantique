@@ -4,8 +4,14 @@
   import lightbulb from "@phosphor-icons/core/assets/duotone/lightbulb-filament-duotone.svg?raw";
   import arrowRight from "@phosphor-icons/core/assets/bold/arrow-right-bold.svg?raw";
   import arrowLeft from "@phosphor-icons/core/assets/bold/arrow-left-bold.svg?raw";
+  import backpack from "@phosphor-icons/core/assets/duotone/backpack-duotone.svg?raw";
+  import headphones from "@phosphor-icons/core/assets/duotone/headphones-duotone.svg?raw";
+  import coffee from "@phosphor-icons/core/assets/duotone/coffee-duotone.svg?raw";
 
-  const ICONS = { users: usersThree, lightbulb, "arrow-right": arrowRight, "arrow-left": arrowLeft } as const;
+  const ICONS = {
+    users: usersThree, lightbulb, "arrow-right": arrowRight, "arrow-left": arrowLeft,
+    backpack, headphones, coffee,
+  } as const;
   export type IconName = keyof typeof ICONS;
 </script>
 

@@ -6,6 +6,7 @@
   import RoomsPage from "./RoomsPage.svelte";
   import BugDialog from "./BugDialog.svelte";
   import Icon from "./Icon.svelte";
+  import LevelTag from "./LevelTag.svelte";
   import {
     cleanCode, connect, createRoom, joinRoom, lastName, lastRoom, roomGiveUp, roomGuess, roomHint, roomMine, roomResume,
     roomReveal, roomSetVisibility, roomState, savedSession, saveSession, type RoomGuess, type Session, type Snapshot, type Visibility,
@@ -482,7 +483,7 @@
       <div class="levels" role="radiogroup" aria-label="Niveau de difficulté">
         {#each meta.levels as l (l)}
           <button role="radio" aria-checked={soloLevel === l} class:on={soloLevel === l} onclick={() => setLevel(l)} title={LEVEL_INFO[l]?.hint}>
-            {levelLabel(l)}
+            <LevelTag level={l} size="1.25em" />
           </button>
         {/each}
       </div>
@@ -675,7 +676,7 @@
       <li><span class="emoji">{l.emoji}</span> <strong>{l.label}</strong> <span class="muted mono small">{i === 0 ? "100°" : l.maxRank === Infinity ? `< ${temperature(LEVELS[i - 1].maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°` : `≥ ${temperature(l.maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°`}</span></li>
     {/each}
   </ul>
-  <p><strong>3 niveaux</strong>, chacun avec son propre mot de l'heure : 🧒 <strong>kid</strong> (7–11 ans, mots concrets, indices plus généreux), 🧑 <strong>teen</strong> et 🧔 <strong>adulte</strong>.</p>
+  <p><strong>3 niveaux</strong>, chacun avec son propre mot de l'heure : <strong><LevelTag level="kid" /></strong> (7–11 ans, mots concrets, indices plus généreux), <strong><LevelTag level="teen" /></strong> et <strong><LevelTag level="adult" /></strong>.</p>
   <p>Zéro piège d'orthographe : <em>chevaux</em> = <em>cheval</em>, <em>mangeait</em> = <em>manger</em>, accents facultatifs.</p>
   <p><strong>Pistes</strong> regroupe tes essais par thème. Coincé ? <strong><Icon name="lightbulb" /> indice</strong> te donne un mot plus proche que ton meilleur.</p>
   {#if !isStandalone()}
@@ -720,7 +721,7 @@
         <legend>Niveau</legend>
         <div class="levels in-dialog" role="radiogroup" aria-label="Niveau de la room">
           {#each meta?.levels ?? ["adult"] as l (l)}
-            <button type="button" role="radio" aria-checked={createLevel === l} class:on={createLevel === l} onclick={() => (createLevel = l)}>{levelLabel(l)}</button>
+            <button type="button" role="radio" aria-checked={createLevel === l} class:on={createLevel === l} onclick={() => (createLevel = l)}><LevelTag level={l} /></button>
           {/each}
         </div>
       </fieldset>

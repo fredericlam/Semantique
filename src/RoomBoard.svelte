@@ -1,7 +1,7 @@
 <script lang="ts">
   import { heat, level } from "./lib/heat.ts";
   import type { Snapshot } from "./lib/room.ts";
-  import { levelLabel } from "./lib/game.ts";
+  import LevelTag from "./LevelTag.svelte";
 
   let { snap, me, vocabSize, connected, onshare, onleave, ontogglevisibility }:
     { snap: Snapshot; me: string; vocabSize: number; connected: boolean; onshare: () => void; onleave: () => void; ontogglevisibility: () => void } = $props();
@@ -27,7 +27,7 @@
   <span class="tape" aria-hidden="true"></span>
   <header>
     <div class="title">
-      <span class="room-name">{snap.name} <span class="lvl">{levelLabel(snap.level)}</span></span>
+      <span class="room-name">{snap.name} <span class="lvl"><LevelTag level={snap.level} /></span></span>
       <span class="meta-line">
         <span class="dot" class:on={connected} title={connected ? "en direct" : "reconnexion…"}></span>
         <span class="kicker">code</span> <span class="code">{snap.code}</span>
@@ -94,7 +94,7 @@
   header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.6rem; }
   .title { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; flex: 1; }
   .room-name { font-family: var(--script); font-size: 1.7rem; line-height: 1.05; color: var(--pink); text-shadow: 1px 1px 0 var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lvl { font-family: var(--font); font-size: 0.75rem; font-weight: 700; color: var(--ink); background: var(--panel-2); border-radius: 99px; padding: 0.1rem 0.5rem; vertical-align: 0.35em; text-shadow: none; }
+  .lvl { display: inline-flex; font-family: var(--font); font-size: 0.75rem; font-weight: 700; color: var(--ink); background: var(--panel-2); border-radius: 99px; padding: 0.1rem 0.5rem; vertical-align: 0.35em; text-shadow: none; }
   .meta-line { display: flex; align-items: center; gap: 0.35rem; }
   .kicker { font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--muted); }
   .code { font-family: var(--mono); font-weight: 700; font-size: 0.95rem; letter-spacing: 0.12em; }
