@@ -1,6 +1,6 @@
 // Service worker: makes the app installable and fast to open.
 // The game itself needs the network (scores come from the server); only static things are cached.
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL = `shell-${VERSION}`;
 const STATIC = `static-${VERSION}`;
 const PRECACHE = ["/", "/installer/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png"];

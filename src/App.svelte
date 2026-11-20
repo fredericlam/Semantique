@@ -453,9 +453,9 @@
 
     {#if game.guesses.length}
       <div class="tabs" role="tablist">
-        <button role="tab" aria-selected={view === "rank"} onclick={() => (view = "rank")}>classement</button>
-        <button role="tab" aria-selected={view === "tracks"} onclick={() => (view = "tracks")}>pistes</button>
-        <button role="tab" aria-selected={view === "time"} onclick={() => (view = "time")}>historique</button>
+        <button role="tab" aria-selected={view === "rank"} onclick={() => (view = "rank")} title="Tes mots, du plus chaud au plus froid">🌡️ thermomètre</button>
+        <button role="tab" aria-selected={view === "tracks"} onclick={() => (view = "tracks")} title="Tes mots regroupés par thème">pistes</button>
+        <button role="tab" aria-selected={view === "time"} onclick={() => (view = "time")} title="Tes mots dans l'ordre où tu les as proposés">historique</button>
       </div>
 
       {#if view === "tracks"}
