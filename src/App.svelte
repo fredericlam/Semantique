@@ -595,7 +595,7 @@
 
     <footer>
       <button class="bug-card" onclick={() => bugDialog?.open()}>
-        <span class="bug-emoji" aria-hidden="true">🐞</span>
+        <span class="bug-emoji" aria-hidden="true">💡</span>
         <span><strong>Un bug, une idée ?</strong><small>Dis-le nous en deux mots</small></span>
         <span class="install-arrow" aria-hidden="true">→</span>
       </button>

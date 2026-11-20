@@ -1,5 +1,5 @@
 <script lang="ts">
-  /** "🐞 signaler un bug" → GitHub issue, created by the server (no GitHub account needed). */
+  /** "💡 un bug, une idée ?" → GitHub issue, created by the server (no GitHub account needed). */
   let { context }: { context: () => Record<string, string | number | boolean | null> } = $props();
 
   let dialog: HTMLDialogElement;
@@ -55,7 +55,7 @@
 
 <dialog bind:this={dialog} class="bug" onclick={(e) => e.target === dialog && dialog.close()}>
   <span class="tape" aria-hidden="true"></span>
-  <h2>🐞 un bug ?</h2>
+  <h2>💡 un bug, une idée ?</h2>
   {#if status === "done"}
     <p class="ok">Merci ! C'est noté 🙏</p>
     <p class="small"><a href={issueUrl} target="_blank" rel="noopener">Suivre le signalement sur GitHub →</a></p>
