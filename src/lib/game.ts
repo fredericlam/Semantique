@@ -41,8 +41,9 @@ export const fetchGuess = (lang: string, round: number, word: string) =>
   api<Omit<Guess, "input" | "n">>(`/api/${lang}/guess?round=${round}&w=${encodeURIComponent(word)}`);
 export const fetchHint = (lang: string, round: number, rank: number) =>
   api<Omit<Guess, "input" | "n">>(`/api/${lang}/hint?round=${round}&rank=${rank}`);
-export const fetchTop = (lang: string, round: number, n = 100) =>
-  api<Omit<Guess, "input" | "n">[]>(`/api/${lang}/top?round=${round}&n=${n}`);
+/** Nearest words: the server only answers for past rounds, or with the found word as proof. */
+export const fetchTop = (lang: string, round: number, found?: string) =>
+  api<Omit<Guess, "input" | "n">[]>(`/api/${lang}/top?round=${round}&n=100${found ? `&found=${encodeURIComponent(found)}` : ""}`).catch(() => []);
 
 // ------------------------------------------------------------------ persistence (per browser)
 

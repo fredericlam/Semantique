@@ -68,7 +68,7 @@
     feedback = null;
     top = [];
     if (lex) for (const g of game.guesses) g.id = lex.index.get(g.word) ?? g.id; // ids depend on the vocab build
-    if (game.status !== "playing") top = await fetchTop(LANG, n);
+    await loadTop();
   }
 
   async function goToLatest() {
@@ -113,8 +113,22 @@
   async function finish(status: "won" | "gaveup") {
     game.status = status;
     persist();
-    top = await fetchTop(LANG, round);
+    await loadTop();
   }
+
+  /** The answer: right away if found, otherwise once the hour is over. */
+  async function loadTop() {
+    if (game.status === "playing" || !meta) return;
+    const found = game.guesses.find((g) => g.rank === 0)?.word;
+    if (found || round < meta.current) top = await fetchTop(LANG, round, found);
+  }
+
+  // when the hour flips, a given-up round can finally show its word
+  $effect(() => {
+    if (newWordReady && game.status === "gaveup" && !top.length && meta) {
+      fetchMeta(LANG).then(async (m) => { meta = m; await loadTop(); });
+    }
+  });
 
   async function submit(raw = input) {
     if (!lex || busy || over || !raw.trim()) return;
@@ -268,8 +282,14 @@
             <p class="secret">{top[0]?.word ?? best?.word}</p>
             <p>en <strong>{tries}</strong> essai{tries > 1 ? "s" : ""}{hints ? ` · ${hints} indice${hints > 1 ? "s" : ""}` : ""}</p>
           {:else}
-            <p class="kicker">le mot était</p>
-            <p class="secret">{top[0]?.word ?? "…"}</p>
+            {#if top.length}
+              <p class="kicker">le mot était</p>
+              <p class="secret">{top[0].word}</p>
+            {:else}
+              <p class="kicker">🏳️ abandon</p>
+              <p class="secret">{roundLabel(round + 1)}</p>
+              <p class="muted small">le mot sera révélé à {roundLabel(round + 1)}, dans <strong class="mono">{countdown}</strong></p>
+            {/if}
             <p>ton meilleur : <strong>{best?.word ?? "aucun"}</strong>{best ? ` (n°${best.rank})` : ""}</p>
           {/if}
           <div class="actions">
