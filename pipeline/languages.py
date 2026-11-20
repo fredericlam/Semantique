@@ -25,6 +25,19 @@ class LexEntry(NamedTuple):
 
 
 @dataclass
+class Level:
+    """How the secret words of one difficulty level are picked (guessable words are the same for all)."""
+    name: str
+    pos: tuple[str, ...]
+    freq: tuple[float, float]           # per million
+    length: tuple[int, int]
+    # optional theme filter: keep words semantically close to these prototypes (concrete, kid-friendly…)
+    themes: tuple[str, ...] = ()
+    theme_min: float = 0.0              # mean cosine to the 3 closest prototypes
+    exclude_suffixes: str = ""          # regex, e.g. abstract nouns
+
+
+@dataclass
 class Language:
     code: str
     timezone: str
@@ -32,9 +45,7 @@ class Language:
     model_file: str                    # one of the downloads (after unzip if needed)
     lexicon: Callable[[Path], Iterator[LexEntry]]
     word_pattern: str                  # regex a lemma must fully match to be guessable
-    secret_pos: tuple[str, ...] = ("NOUN", "ADJ", "VERB")
-    secret_freq: tuple[float, float] = (4.0, 250.0)   # per million
-    secret_len: tuple[int, int] = (4, 12)
+    levels: dict[str, Level] = field(default_factory=dict)
     min_vocab_freq: float = 0.05
     credits: list[str] = field(default_factory=list)
 
@@ -61,6 +72,23 @@ def lexique383(raw: Path) -> Iterator[LexEntry]:
             )
 
 
+_KID_THEMES = tuple("""
+chat chien lapin oiseau poisson cheval vache lion éléphant pomme banane gâteau pain fromage carotte chocolat
+maison chambre lit table chaise cuisine école cartable crayon cahier livre jouet ballon poupée vélo voiture train
+avion bateau arbre fleur forêt mer plage montagne soleil pluie neige nuage main pied tête nez pantalon chaussure
+robe chapeau guitare piano tambour marteau pirate princesse sorcière dragon château fusée
+""".split())
+
+FR_LEVELS = {
+    # 7–11 ans : noms concrets et courants, proches de thèmes du quotidien d'un enfant
+    "kid": Level("kid", pos=("NOUN",), freq=(3.0, 700.0), length=(3, 10), themes=_KID_THEMES, theme_min=0.40,
+                 exclude_suffixes=r"(tion|sion|isme|ité|ence|ance|ment|esse|itude|ude)$"),
+    # ados : noms, verbes, adjectifs courants
+    "teen": Level("teen", pos=("NOUN", "ADJ", "VERB"), freq=(12.0, 400.0), length=(3, 11)),
+    # adultes : le réglage d'origine, mots plus rares inclus
+    "adult": Level("adult", pos=("NOUN", "ADJ", "VERB"), freq=(4.0, 250.0), length=(4, 12)),
+}
+
 FR = Language(
     code="fr",
     timezone="Europe/Paris",
@@ -71,6 +99,7 @@ FR = Language(
     },
     model_file="frWac_500_skip_cut100.bin",
     lexicon=lexique383,
+    levels=FR_LEVELS,
     word_pattern=r"[a-zàâäçéèêëîïôöùûüÿœæ]+(?:[-'][a-zàâäçéèêëîïôöùûüÿœæ]+)*",
     credits=[
         "Vecteurs : Jean-Philippe Fauconnier, frWac (CC-BY) — https://fauconnier.github.io/#data",

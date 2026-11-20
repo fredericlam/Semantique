@@ -46,12 +46,14 @@ jobs:
           if [ -z "$SECRET_SEED" ]; then echo "::error::secret SECRET_SEED manquant (contenu de data/secret_seed)"; exit 1; fi
           mkdir -p data && printf '%s' "$SECRET_SEED" > data/secret_seed
 
-      - name: Récupérer le planning existant (les mots déjà joués ne bougent pas)
+      - name: Récupérer les plannings existants (les mots déjà joués ne bougent pas)
         run: |
-          mkdir -p "data/out/$LANG_CODE/private"
-          npx wrangler r2 object get "semantique-data/$LANG_CODE/private/schedule.json" --remote \
-            --file "data/out/$LANG_CODE/private/schedule.json" \
-            || echo "::warning::pas de planning existant, il sera créé"
+          for level in kid teen adult; do
+            mkdir -p "data/out/$LANG_CODE/private/$level"
+            npx wrangler r2 object get "semantique-data/$LANG_CODE/private/$level/schedule.json" --remote \
+              --file "data/out/$LANG_CODE/private/$level/schedule.json" \
+              || echo "::warning::pas de planning $level existant, il sera créé"
+          done
 
       - name: Cache des données brutes (~270 Mo)
         uses: actions/cache@v4

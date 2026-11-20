@@ -13,7 +13,7 @@
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, level, temperature } from "./lib/heat.ts";
   import {
-    buildTracks, computeStats, fetchGuess, fetchHint, fetchMeta, fetchTop, loadState, nextHintRank, saveState,
+    buildTracks, computeStats, fetchGuess, fetchHint, fetchMeta, fetchTop, loadState, nextHintRank, saveState, LEVEL_INFO, levelLabel,
     type GameState, type Guess, type Meta,
   } from "./lib/game.ts";
 
@@ -56,6 +56,10 @@
   let joinName = $state("");
   let roomName = $state("");
   let roomVisibility = $state<Visibility>("public");
+  let soloLevel = $state<string>((() => { try { return localStorage.getItem("semantique:level") ?? "adult"; } catch { return "adult"; } })());
+  let createLevel = $state("adult");
+  /** In a room, its level; otherwise the one picked on this device. */
+  const playLevel = $derived(session && snap ? snap.level : soloLevel);
   let dialogMode = $state<"join" | "create">("join");
   let page = $state<"game" | "rooms">(location.pathname.startsWith("/rooms") ? "rooms" : "game");
   let joinError = $state("");
@@ -84,9 +88,9 @@
   const byTime = $derived([...game.guesses].sort((a, b) => b.n - a.n));
   const tracks = $derived(lex && view === "tracks" ? buildTracks(lex, game.guesses) : []);
   const over = $derived(game.status !== "playing");
-  const noMoreHints = $derived(nextHintRank(game.guesses) === null);
+  const noMoreHints = $derived(nextHintRank(game.guesses, playLevel) === null);
   const guessed = $derived(new Set(game.guesses.map((g) => g.id)));
-  const stats = $derived(meta ? (game.status, computeStats(LANG, meta.current)) : null);
+  const stats = $derived(meta ? (game.status, computeStats(LANG, soloLevel, meta.current)) : null);
   const remaining = $derived(meta ? Math.max(0, Date.parse(meta.nextAt) - now) : 0);
   const newWordReady = $derived(!!meta && remaining === 0);
   const countdown = $derived(`${String(Math.floor(remaining / 60000)).padStart(2, "0")}:${String(Math.floor(remaining / 1000) % 60).padStart(2, "0")}`);
@@ -107,7 +111,7 @@
       const mine = await roomMine(LANG, session, n);
       game = { guesses: mine.guesses.map((g) => ({ ...g, input: "" })), status: mine.status };
     } else {
-      game = loadState(LANG, n);
+      game = loadState(LANG, soloLevel, n);
     }
     // drop duplicates left by older versions
     game.guesses = game.guesses.filter((g, i, all) => all.findIndex((o) => o.word === g.word) === i);
@@ -171,6 +175,7 @@
 
   function openRoomDialog(code = "", mode: "join" | "create" = "join") {
     dialogMode = mode;
+    createLevel = soloLevel;
     joinCode = code;
     joinName = joinName || lastName();
     joinError = "";
@@ -198,7 +203,7 @@
     if (!name) return (joinError = "Choisis ton nom de joueur.");
     joinBusy = true;
     try {
-      const code = create ? (await createRoom(LANG, roomName, roomVisibility)).code : cleanCode(joinCode);
+      const code = create ? (await createRoom(LANG, roomName, roomVisibility, createLevel)).code : cleanCode(joinCode);
       if (code.length !== 5) throw new Error("Le code fait 5 caractères.");
       const res = await joinRoom(LANG, code, name, savedSession(code)?.token);
       roomDialog.close();
@@ -210,6 +215,40 @@
     } finally {
       joinBusy = false;
     }
+  }
+
+  // ---------------------------------------------------------------- theme (footer switch)
+  type Theme = "auto" | "light" | "dark";
+  let theme = $state<Theme>((() => { try { return (localStorage.getItem("semantique:theme") as Theme) ?? "auto"; } catch { return "auto"; } })());
+
+  function setTheme(t: Theme) {
+    theme = t;
+    try {
+      if (t === "auto") localStorage.removeItem("semantique:theme");
+      else localStorage.setItem("semantique:theme", t);
+    } catch {}
+    const root = document.documentElement;
+    if (t === "auto") delete root.dataset.theme;
+    else root.dataset.theme = t;
+    const dark = t === "dark" || (t === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.remove());
+    const m = Object.assign(document.createElement("meta"), { name: "theme-color", content: dark ? "#1b0f2e" : "#ffd9c2" });
+    document.head.appendChild(m);
+  }
+
+  /** "Vecteurs : Jean-Philippe Fauconnier, frWac (CC-BY) — https://…" → label, linked text, licence. */
+  function parseCredit(c: string) {
+    const m = c.match(/^(.*?)\s*:\s*(.*?)\s*—\s*(https?:\/\/\S+)$/);
+    if (!m) return { label: "", text: c, licence: "", url: "" };
+    const lic = m[2].match(/\s*\(([^)]+)\)\s*$/);
+    return { label: m[1], text: lic ? m[2].slice(0, lic.index) : m[2], licence: lic?.[1] ?? "", url: m[3] };
+  }
+
+  async function setLevel(l: string) {
+    if (l === soloLevel) return;
+    soloLevel = l;
+    try { localStorage.setItem("semantique:level", l); } catch {}
+    if (!session && meta) await openRound(meta.current);
   }
 
   function goPage(p: "game" | "rooms") {
@@ -275,7 +314,7 @@
 
   function persist() {
     if (session) return; // the room keeps the state
-    saveState(LANG, round, $state.snapshot(game) as GameState);
+    saveState(LANG, soloLevel, round, $state.snapshot(game) as GameState);
   }
 
   function add(g: Omit<Guess, "input" | "n">, typed: string, hint = false) {
@@ -305,7 +344,7 @@
         top = r.top;
         roomWords = r.players.filter((p) => p.name !== session!.name);
       } catch {}
-    } else top = await fetchTop(LANG, round, found);
+    } else top = await fetchTop(LANG, soloLevel, round, found);
   }
 
   // when the hour flips, a given-up round can finally show its word
@@ -332,7 +371,7 @@
     }
     busy = true;
     try {
-      add(session ? await roomGuess(LANG, session, res.word) : await fetchGuess(LANG, round, res.word), clean(raw));
+      add(session ? await roomGuess(LANG, session, res.word) : await fetchGuess(LANG, soloLevel, round, res.word), clean(raw));
       if (res.alts.length) feedback = { kind: "alts", word: res.word, alts: res.alts.filter((a) => !game.guesses.some((g) => g.word === a)) };
       input = "";
     } catch (e) {
@@ -353,11 +392,11 @@
   }
 
   async function hint() {
-    const target = nextHintRank(game.guesses);
+    const target = nextHintRank(game.guesses, playLevel);
     if (busy || over || target === null) return;
     busy = true;
     try {
-      add(session ? await roomHint(LANG, session) : await fetchHint(LANG, round, target), "", true);
+      add(session ? await roomHint(LANG, session) : await fetchHint(LANG, soloLevel, round, target), "", true);
     } catch (e) {
       feedback = { kind: "error", message: (e as Error).message };
     } finally {
@@ -385,7 +424,7 @@
 
   function shareText() {
     const counts = LEVELS.slice(1).map((l) => [l, game.guesses.filter((g) => !g.hint && level(g.rank) === l).length] as const);
-    const label = `Sémantique 🌴 mot de ${roundLabel(round)}${session ? ` · room ${session.code}` : ""}`;
+    const label = `Sémantique 🌴 mot de ${roundLabel(round)} · ${levelLabel(playLevel)}${session ? ` · room ${snap?.name ?? session.code}` : ""}`;
     const head = game.status === "won"
       ? `${label} — 🎯 en ${tries} essai${tries > 1 ? "s" : ""}${hints ? ` (${hints} 💡)` : ""}`
       : `${label} — 🏳️ abandon, meilleur ${best && meta ? temperature(best.rank, meta.vocabSize).toFixed(1) : "0"}°`;
@@ -440,6 +479,13 @@
     {#if session && snap}
       <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} onleave={leaveRoom} ontogglevisibility={toggleVisibility} />
     {:else}
+      <div class="levels" role="radiogroup" aria-label="Niveau de difficulté">
+        {#each meta.levels as l (l)}
+          <button role="radio" aria-checked={soloLevel === l} class:on={soloLevel === l} onclick={() => setLevel(l)} title={LEVEL_INFO[l]?.hint}>
+            {levelLabel(l)}
+          </button>
+        {/each}
+      </div>
       <button class="room-cta" onclick={() => goPage("rooms")}>
         <span class="cta-emoji"><Icon name="users" size="1.9rem" /></span>
         <span class="cta-text"><strong>Rejoins une room</strong><small>joue à plusieurs sur le mot de l'heure</small></span>
@@ -600,7 +646,22 @@
         <span><strong>Un bug, une idée ?</strong><small>Dis-le nous en deux mots</small></span>
         <span class="install-arrow"><Icon name="arrow-right" /></span>
       </button>
-      {#each meta.credits as c}<p>{c}</p>{/each}
+      <div class="theme-switch" role="radiogroup" aria-label="Thème">
+        {#each [["auto", "🌓 auto"], ["light", "☀️ clair"], ["dark", "🌙 sombre"]] as [t, label] (t)}
+          <button role="radio" aria-checked={theme === t} class:on={theme === t} onclick={() => setTheme(t as Theme)}>{label}</button>
+        {/each}
+      </div>
+      <ul class="credits">
+        {#each meta.credits.map(parseCredit) as c (c.text)}
+          <li>
+            {#if c.label}<span class="muted">{c.label}</span>{/if}
+            {#if c.url}<a href={c.url} target="_blank" rel="noopener">{c.text}</a>{:else}{c.text}{/if}
+            {#if c.licence}<span class="lic">{c.licence}</span>{/if}
+          </li>
+        {/each}
+        <li><span class="muted">Inspiré de</span> <a href="https://cemantix.certitudes.org/" target="_blank" rel="noopener">Cémantix</a> et <a href="https://semantle.com/" target="_blank" rel="noopener">Semantle</a></li>
+        <li><span class="muted">Code</span> <a href="https://github.com/fredericlam/Semantique" target="_blank" rel="noopener">GitHub</a> · <a href="/installer/">Installer l'app</a></li>
+      </ul>
     </footer>
   {/if}
 </div>
@@ -614,6 +675,7 @@
       <li><span class="emoji">{l.emoji}</span> <strong>{l.label}</strong> <span class="muted mono small">{i === 0 ? "100°" : l.maxRank === Infinity ? `< ${temperature(LEVELS[i - 1].maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°` : `≥ ${temperature(l.maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°`}</span></li>
     {/each}
   </ul>
+  <p><strong>3 niveaux</strong>, chacun avec son propre mot de l'heure : 🧒 <strong>kid</strong> (7–11 ans, mots concrets, indices plus généreux), 🧑 <strong>teen</strong> et 🧔 <strong>adulte</strong>.</p>
   <p>Zéro piège d'orthographe : <em>chevaux</em> = <em>cheval</em>, <em>mangeait</em> = <em>manger</em>, accents facultatifs.</p>
   <p><strong>Pistes</strong> regroupe tes essais par thème. Coincé ? <strong><Icon name="lightbulb" /> indice</strong> te donne un mot plus proche que ton meilleur.</p>
   {#if !isStandalone()}
@@ -654,6 +716,14 @@
         <span>Nom de la room <span class="muted">(facultatif)</span></span>
         <input bind:value={roomName} maxlength="30" placeholder="ex. Les Flamants roses" autocomplete="off" />
       </label>
+      <fieldset class="vis">
+        <legend>Niveau</legend>
+        <div class="levels in-dialog" role="radiogroup" aria-label="Niveau de la room">
+          {#each meta?.levels ?? ["adult"] as l (l)}
+            <button type="button" role="radio" aria-checked={createLevel === l} class:on={createLevel === l} onclick={() => (createLevel = l)}>{levelLabel(l)}</button>
+          {/each}
+        </div>
+      </fieldset>
       <fieldset class="vis">
         <legend>Visibilité</legend>
         <label class:on={roomVisibility === "public"}>
@@ -831,7 +901,6 @@
   .loading { padding: 3rem 0; text-align: center; font-family: var(--mono); }
   .error-box { color: var(--pink); }
   footer { margin-top: 3rem; color: var(--muted); font-size: 0.72rem; line-height: 1.5; }
-  footer p { margin: 0.2rem 0; }
 
   dialog {
     border: 2px solid var(--line); border-radius: 6px; padding: 0.6rem 1.4rem 1.3rem; overflow: visible;
@@ -849,6 +918,10 @@
   .stats span { font-size: 0.7rem; color: var(--muted); }
 
   .icon.active { background: var(--pink); color: white; }
+  .levels { display: flex; gap: 4px; padding: 4px; margin: 2px 0 10px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 99px; }
+  .levels button { flex: 1; border: 0; background: none; border-radius: 99px; padding: 0.4rem 0.3rem; font-weight: 700; font-size: 0.88rem; color: var(--muted); white-space: nowrap; }
+  .levels button.on { background: var(--pink); color: white; box-shadow: var(--shadow-sm); }
+  .levels.in-dialog { margin: 0; }
   .room-cta {
     display: flex; align-items: center; gap: 0.75rem; width: 100%; margin: 4px 0 12px; padding: 0.6rem 0.9rem; text-align: left;
     background: var(--panel); border: 2px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-sm); color: var(--ink);
@@ -866,6 +939,13 @@
   .room-dialog input { box-shadow: var(--shadow-sm); font-size: 1.05rem; padding: 0.65rem 0.85rem; }
   .code-input { font-family: var(--mono); letter-spacing: 0.3em; text-transform: uppercase; }
   .room-dialog .go { width: 100%; padding: 0.8rem; }
+  .theme-switch { display: flex; gap: 3px; padding: 3px; margin: 0 auto 1rem; width: fit-content; background: var(--panel-2); border-radius: 99px; }
+  .theme-switch button { border: 0; background: none; border-radius: 99px; padding: 0.3rem 0.75rem; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+  .theme-switch button.on { background: var(--ink); color: var(--panel); }
+  .credits { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.35rem; text-align: center; font-size: 0.78rem; }
+  .credits a { color: var(--ink); font-weight: 600; text-decoration-color: var(--pink); text-underline-offset: 2px; }
+  .credits a:hover { color: var(--pink); }
+  .credits .lic { font-family: var(--mono); font-size: 0.65rem; border: 1px solid currentColor; border-radius: 4px; padding: 0 0.25rem; margin-left: 0.25rem; color: var(--muted); }
   .bug-card {
     display: flex; align-items: center; gap: 0.75rem; width: 100%; margin: 0 0 1.2rem; padding: 0.6rem 0.85rem; text-align: left;
     background: var(--panel); border: 2px dashed var(--line); border-radius: 16px; color: var(--ink); rotate: 0.5deg; font-size: 0.95rem;

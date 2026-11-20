@@ -21,6 +21,8 @@ Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantl
 | **Rooms** : serveur (Durable Object) | ✅ en ligne |
 | **Rooms** : interface (rejoindre, tableau en direct, classement, parcours) | ✅ fait, testé en local à 3 joueurs |
 | Mise en ligne sur Cloudflare | ✅ https://semantique.flaaam.workers.dev |
+| Niveaux 🧒 kid / 🧑 teen / 🧔 adulte (un mot secret par niveau et par heure) | ✅ |
+| Thème clair / sombre / auto (pied de page) | ✅ |
 | Version anglaise | 🧩 préparée, pas branchée |
 | Classement général hors rooms (D1) | 💤 reporté |
 
@@ -28,7 +30,14 @@ Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantl
 
 - **Température en °C** calculée à partir du rang du mot, ce qui donne une progression lisible dès le premier essai. Le petit **n°** affiché à côté est le rang (n°1 = le mot le plus proche).
 - **Saisie tolérante** : *chevaux* compte comme *cheval*, *mangeait* comme *manger*. Les accents sont facultatifs (« peche » propose aussi pêche et pécher), et une faute de frappe propose des corrections.
-- **Indices progressifs** : d'abord un mot du top 1000, puis à chaque fois un mot environ 4 fois plus proche que ton meilleur essai. Au rang 1, plus d'indice.
+- **3 niveaux**, chacun avec son propre mot de l'heure :
+  - 🧒 **kid** (7–11 ans) : noms concrets du quotidien, choisis par proximité de sens avec des thèmes d'enfants (animaux, nourriture, école, jouets…), avec des listes noires dédiées ;
+  - 🧑 **teen** : noms, verbes et adjectifs courants ;
+  - 🧔 **adulte** : mots plus rares.
+
+  Les mots acceptés sont les mêmes pour tous. En solo, le niveau se choisit sous l'en-tête et l'app s'en souvient ; une room a un niveau fixé à sa création. Les parties et les statistiques sont séparées par niveau.
+- **Indices progressifs** : d'abord un mot du top 1000 (top 300 en kid), puis à chaque fois un mot environ 4 fois (3 fois en kid) plus proche que ton meilleur essai. Au rang 1, plus d'indice.
+- **Thème** : 🌓 auto (suit l'appareil), ☀️ clair ou 🌙 sombre, au choix en pied de page.
 - **Pistes** : tes essais sont regroupés automatiquement par thème.
 - **Abandonner** ne révèle le mot qu'à la fin de l'heure, pour ne pas fausser la compétition dans les rooms. Tant que l'heure n'est pas finie, on peut **reprendre la partie** (↩️).
 - **Rooms publiques ou privées** : la page `/rooms` liste les rooms publiques, triées par activité, avec un bouton « rejoindre ». Une room privée ne se rejoint qu'avec son code. Le créateur peut changer la visibilité à tout moment. Chaque room a un nom libre, distinct de son code.
@@ -86,11 +95,11 @@ Scripts : `npm run check` (types), `npm run build`, `npm run preview` (version d
   - `vec.bin` (vecteurs réduits, pour les pistes) ;
   - `meta.json`.
 - `private/` reste côté serveur, hors du dépôt :
-  - `schedule.json` : le mot secret de chaque manche ;
-  - `rounds/NNNN.bin` : 100 manches par fichier ; pour chaque manche, `int16[V]` similarité ×10000 puis `uint16[V]` rang.
+  - `<niveau>/schedule.json` (kid, teen, adult) : le mot secret de chaque manche ;
+  - `<niveau>/rounds/NNNN.bin` : 100 manches par fichier ; pour chaque manche, `int16[V]` similarité ×10000 puis `uint16[V]` rang.
 - `data/secret_seed` : graine du tirage des mots, **non versionnée et à ne pas perdre**. Le dépôt étant public, c'est elle qui empêche de deviner les mots à venir.
 
-Relancer le script de préparation garde le planning existant et ne fait qu'ajouter des manches. Pour exclure un mot des tirages, ajoute-le dans `pipeline/blocklist_fr.txt`.
+Relancer le script de préparation garde les plannings existants et ne fait qu'ajouter des manches. Pour exclure un mot des tirages, ajoute-le dans `pipeline/blocklist_fr.txt` (tous niveaux) ou `pipeline/blocklist_fr_kid.txt` (kid seulement). Les réglages de chaque niveau sont dans `pipeline/languages.py` (`FR_LEVELS`).
 
 ---
 
@@ -165,7 +174,7 @@ npm run deploy                              # build + wrangler deploy
 
 ### Que contient le stockage R2 (`semantique-data`) ?
 
-Le stockage R2 contient les mêmes fichiers que `data/out/fr/`, 25 au total. Les fichiers **`.bin`** sont des fichiers **binaires** : de simples suites de nombres, sans texte ni JSON, donc illisibles dans un éditeur. Ce n'est ni une erreur ni une archive.
+Le stockage R2 contient les mêmes fichiers que `data/out/fr/`, 67 au total (environ 660 Mo pour les 3 niveaux). Les fichiers **`.bin`** sont des fichiers **binaires** : de simples suites de nombres, sans texte ni JSON, donc illisibles dans un éditeur. Ce n'est ni une erreur ni une archive.
 
 | Fichier | Taille | Contenu |
 |---|---|---|
@@ -173,8 +182,8 @@ Le stockage R2 contient les mêmes fichiers que `data/out/fr/`, 25 au total. Les
 | `fr/public/vocab.txt` | 280 Ko | les ≈ 28 800 mots jouables, un par ligne ; le numéro de ligne sert d'identifiant du mot |
 | `fr/public/forms.json` | 1,8 Mo | formes fléchies et version sans accents, vers l'identifiant du mot (*chevaux* → *cheval*) |
 | `fr/public/vec.bin` | 1,3 Mo | pour chaque mot, 48 petits nombres (son « sens » compressé) : sert à regrouper tes essais en **pistes** |
-| `fr/private/schedule.json` | 23 Ko | 🔒 le mot secret de chaque manche, dans l'ordre |
-| `fr/private/rounds/0000.bin` … `0019.bin` | 11,5 Mo chacun | 🔒 les **réponses précalculées** de 100 manches (voir ci-dessous) |
+| `fr/private/{kid,teen,adult}/schedule.json` | 23 Ko | 🔒 le mot secret de chaque manche, dans l'ordre, par niveau |
+| `fr/private/{kid,teen,adult}/rounds/0000.bin` … `0019.bin` | 11,5 Mo chacun | 🔒 les **réponses précalculées** de 100 manches (voir ci-dessous) |
 
 **Pourquoi `rounds/*.bin` ?** Pour chaque manche, il faut connaître à l'avance, pour *chacun* des 28 800 mots, sa proximité avec le mot secret et son rang. C'est ce qui donne la température quand tu proposes un mot. Le Worker gratuit n'a droit qu'à 10 ms de calcul par requête, donc ces tables sont calculées une fois pour toutes par le script de préparation, puis rangées ainsi :
 
@@ -184,7 +193,7 @@ Le stockage R2 contient les mêmes fichiers que `data/out/fr/`, 25 au total. Les
 
 En binaire, une manche pèse 115 Ko au lieu d'environ 1 Mo en JSON, et se lit instantanément (`Int16Array` / `Uint16Array`). Le dossier `private/` n'est jamais accessible depuis le navigateur. Seul le Worker le lit, ce qui garde les mots secrets à l'abri.
 
-20 fichiers × 100 manches = **2000 heures de jeu, soit environ 83 jours**. Pour aller plus loin : `pipeline/build.py fr --rounds 4000`, puis `npm run seed:remote`.
+3 niveaux × 20 fichiers × 100 manches = **2000 heures de jeu par niveau, soit environ 83 jours**. En kid, les 633 mots possibles reviennent par cycles d'environ 26 jours. Pour aller plus loin : `pipeline/build.py fr --rounds 4000`, puis `npm run seed:remote`.
 
 ---
 

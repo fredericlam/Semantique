@@ -17,6 +17,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&family=Yellowtail&display=swap" rel="stylesheet" />
+    <script>
+      // theme chosen in the footer (auto / light / dark), applied before first paint
+      try {
+        var t = localStorage.getItem("semantique:theme");
+        if (t === "light" || t === "dark") {
+          document.documentElement.dataset.theme = t;
+          document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.remove(); });
+          var m = document.createElement("meta");
+          m.name = "theme-color";
+          m.content = t === "dark" ? "#1b0f2e" : "#ffd9c2";
+          document.head.appendChild(m);
+        }
+      } catch (e) {}
+    </script>
     <title>Sémantique</title>
   </head>
   <body>

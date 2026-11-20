@@ -9,8 +9,9 @@ Outputs (data/out/<lang>/):
     forms.json     {"forms": {form: id}, "loose": {accentless form: [ids, most frequent first]}}
     vec.bin        int8 [V x D] reduced vectors (grouping / 2D map of guesses)
   private/  — server only
-    schedule.json  start, period, round number -> secret word (stable across re-runs; only appended)
-    rounds/NNNN.bin CHUNK rounds per file; each round = int16[V] similarity*10000 + uint16[V] rank (0 = secret)
+    <level>/schedule.json   start, period, round number -> secret word (stable across re-runs; only appended)
+    <level>/rounds/NNNN.bin CHUNK rounds per file; each round = int16[V] similarity*10000 + uint16[V] rank (0 = secret)
+    levels: kid / teen / adult (see languages.py) — same guessable vocabulary, different secret words
 """
 from __future__ import annotations
 
@@ -29,7 +30,7 @@ from pathlib import Path
 
 import numpy as np
 
-from languages import LANGUAGES, ROOT, Language
+from languages import LANGUAGES, ROOT, Language, Level
 from w2v import load_word2vec
 
 REDUCED_DIMS = 48
@@ -116,30 +117,72 @@ def build_forms(vocab: list[str], freq: dict[str, float], form_lemmas: dict[str,
     return forms, loose
 
 
-def pick_secrets(lang, vocab, freq, pos, n_rounds, existing):
-    lo, hi = lang.secret_freq
-    lmin, lmax = lang.secret_len
+def blocklist(name: str) -> set[str]:
+    f = Path(__file__).parent / name
+    if not f.exists():
+        return set()
+    return {l.strip() for l in f.read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")}
+
+
+def candidates(lang: Language, level: Level, vocab, freq, pos, M) -> list[str]:
+    lo, hi = level.freq
+    lmin, lmax = level.length
     simple = re.compile(r"[^\W\d_]+")
-    cands = sorted(
+    suffix = re.compile(level.exclude_suffixes) if level.exclude_suffixes else None
+    blocked = blocklist(f"blocklist_{lang.code}.txt") | blocklist(f"blocklist_{lang.code}_{level.name}.txt")
+    cands = [
         w for w in vocab
-        if pos.get(w) in lang.secret_pos and lo <= freq[w] <= hi
-        and lmin <= len(w) <= lmax and simple.fullmatch(w)
-    )
-    blockfile = Path(__file__).parent / f"blocklist_{lang.code}.txt"
-    if blockfile.exists():
-        blocked = {l.strip() for l in blockfile.read_text().splitlines() if l.strip() and not l.startswith("#")}
-        cands = [w for w in cands if w not in blocked]
-    random.Random(f"{secret_seed()}:{lang.code}").shuffle(cands)
-    used = set(existing)
+        if pos.get(w) in level.pos and lo <= freq[w] <= hi and lmin <= len(w) <= lmax
+        and simple.fullmatch(w) and w not in blocked and not (suffix and suffix.search(w))
+    ]
+    if level.themes:
+        index = {w: i for i, w in enumerate(vocab)}
+        P = M[[index[w] for w in level.themes if w in index]]
+        top3 = lambda w: float(np.sort(P @ M[index[w]])[-3:].mean())
+        cands = [w for w in cands if top3(w) >= level.theme_min]
+    return sorted(cands)
+
+
+def pick_secrets(lang: Language, level: Level, cands: list[str], n_rounds: int, existing: list[str]) -> list[str]:
+    """Keep the existing schedule, then append shuffled candidates. When candidates run out
+    (small kid list), start a new shuffled cycle, avoiding words seen in the last half-cycle."""
     picked = list(existing)
-    for w in cands:
-        if len(picked) >= n_rounds:
+    cycle = 0
+    while len(picked) < n_rounds and cands:
+        order = list(cands)
+        tag = f"{secret_seed()}:{lang.code}" if level.name == "adult" else f"{secret_seed()}:{lang.code}:{level.name}"
+        random.Random(f"{tag}:{cycle}" if cycle else tag).shuffle(order)
+        recent = set(picked[-(len(cands) // 2):]) if cycle else set(picked)
+        for w in order:
+            if len(picked) >= n_rounds:
+                break
+            if w not in recent:
+                picked.append(w)
+                recent.add(w)
+        cycle += 1
+        if cycle > 1000:
             break
-        if w not in used:
-            picked.append(w)
-            used.add(w)
-    print(f"  {len(cands)} secret candidates, {len(picked)} rounds scheduled")
+    print(f"  [{level.name}] {len(cands)} candidates, {len(picked)} rounds, {len(set(picked))} distinct words")
     return picked
+
+
+def write_rounds(dir_: Path, secrets: list[str], vocab: list[str], M: np.ndarray) -> None:
+    # Round tables, precomputed so the server only reads (Workers free plan: 10 ms CPU per request).
+    # Packed CHUNK rounds per file; the server range-reads the 4·V bytes of one round.
+    index = {w: i for i, w in enumerate(vocab)}
+    dir_.mkdir(parents=True, exist_ok=True)
+    V = len(vocab)
+    for c0 in range(0, len(secrets), CHUNK):
+        parts = []
+        for w in secrets[c0:c0 + CHUNK]:
+            sims = M @ M[index[w]]
+            sims[index[w]] = 2.0  # secret always first
+            ranks = np.empty(V, dtype=np.uint16)
+            ranks[np.argsort(-sims, kind="stable")] = np.arange(V, dtype=np.uint16)
+            sims[index[w]] = 1.0
+            parts.append(np.clip(np.round(sims * 10000), -10000, 10000).astype("<i2").tobytes())
+            parts.append(ranks.astype("<u2").tobytes())
+        (dir_ / f"{c0 // CHUNK:04d}.bin").write_bytes(b"".join(parts))
 
 
 def main() -> None:
@@ -188,41 +231,44 @@ def main() -> None:
     R /= np.linalg.norm(R, axis=1, keepdims=True)
     (pub / "vec.bin").write_bytes(np.clip(np.round(R * 127), -127, 127).astype(np.int8).tobytes())
 
-    print("5/5 schedule + round tables")
-    sched_path = priv / "schedule.json"
-    sched = json.loads(sched_path.read_text()) if sched_path.exists() else None
-    if sched:
-        start, period = sched["start"], sched["period"]
-    else:
+    print("5/5 schedules + round tables (per level)")
+    # one-time migration: the original single schedule becomes the "adult" one, unchanged
+    legacy = priv / "schedule.json"
+    if legacy.exists() and not (priv / "adult" / "schedule.json").exists():
+        (priv / "adult").mkdir(exist_ok=True)
+        legacy.rename(priv / "adult" / "schedule.json")
+    if (priv / "rounds").exists():
+        for f in (priv / "rounds").iterdir():
+            f.unlink()
+        (priv / "rounds").rmdir()
+
+    start = period = None
+    for name in lang.levels:
+        sched_path = priv / name / "schedule.json"
+        sched = json.loads(sched_path.read_text()) if sched_path.exists() else None
+        if sched and start is None:
+            start, period = sched["start"], sched["period"]
+    if start is None:
         start = args.start or dt.datetime.now().astimezone().replace(minute=0, second=0, microsecond=0).isoformat()
         start = dt.datetime.fromisoformat(start).isoformat()  # validate
         period = args.period
-    existing = [w for w in (sched["words"] if sched else []) if w in set(vocab)]
-    secrets = pick_secrets(lang, vocab, freq, pos, args.rounds, existing)
-    sched_path.write_text(json.dumps({"start": start, "period": period, "words": secrets}, ensure_ascii=False, indent=0))
 
-    # Round tables, precomputed so the server only reads (Workers free plan: 10 ms CPU per request).
-    # Packed CHUNK rounds per file; the server range-reads the 4·V bytes of one round.
-    index = {w: i for i, w in enumerate(vocab)}
-    rounds_dir = priv / "rounds"
-    rounds_dir.mkdir(exist_ok=True)
-    V = len(vocab)
-    for c0 in range(0, len(secrets), CHUNK):
-        parts = []
-        for w in secrets[c0:c0 + CHUNK]:
-            sims = M @ M[index[w]]
-            sims[index[w]] = 2.0  # secret always first
-            ranks = np.empty(V, dtype=np.uint16)
-            ranks[np.argsort(-sims, kind="stable")] = np.arange(V, dtype=np.uint16)
-            sims[index[w]] = 1.0
-            parts.append(np.clip(np.round(sims * 10000), -10000, 10000).astype("<i2").tobytes())
-            parts.append(ranks.astype("<u2").tobytes())
-        (rounds_dir / f"{c0 // CHUNK:04d}.bin").write_bytes(b"".join(parts))
-    print(f"  {len(secrets)} round tables in {-(-len(secrets) // CHUNK)} files")
+    vocab_set = set(vocab)
+    rounds_per_level = {}
+    for name, level in lang.levels.items():
+        sched_path = priv / name / "schedule.json"
+        sched_path.parent.mkdir(parents=True, exist_ok=True)
+        sched = json.loads(sched_path.read_text()) if sched_path.exists() else None
+        existing = [w for w in (sched["words"] if sched else []) if w in vocab_set]
+        secrets = pick_secrets(lang, level, candidates(lang, level, vocab, freq, pos, M), args.rounds, existing)
+        sched_path.write_text(json.dumps({"start": start, "period": period, "words": secrets}, ensure_ascii=False, indent=0))
+        write_rounds(priv / name / "rounds", secrets, vocab, M)
+        rounds_per_level[name] = len(secrets)
 
     meta = {
         "lang": lang.code, "timezone": lang.timezone,
-        "start": start, "period": period, "rounds": len(secrets), "chunk": CHUNK,
+        "start": start, "period": period, "rounds": min(rounds_per_level.values()), "chunk": CHUNK,
+        "levels": list(lang.levels), "defaultLevel": "adult" if "adult" in lang.levels else next(iter(lang.levels)),
         "vocabSize": len(vocab), "dims": int(M.shape[1]), "vecDims": REDUCED_DIMS,
         "credits": lang.credits,
         # cache-busting key for public files; changes whenever the vocabulary does

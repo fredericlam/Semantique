@@ -5,6 +5,12 @@
   "period": 3600,
   "rounds": 2000,
   "chunk": 100,
+  "levels": [
+    "kid",
+    "teen",
+    "adult"
+  ],
+  "defaultLevel": "adult",
   "vocabSize": 28849,
   "dims": 500,
   "vecDims": 48,

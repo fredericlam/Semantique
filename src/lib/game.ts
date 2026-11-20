@@ -26,7 +26,16 @@ export interface Meta {
   vecDims: number;
   credits: string[];
   version: string;
+  levels: string[];
+  defaultLevel: string;
 }
+
+export const LEVEL_INFO: Record<string, { label: string; emoji: string; hint: string }> = {
+  kid: { label: "kid", emoji: "🧒", hint: "7–11 ans : des mots concrets du quotidien" },
+  teen: { label: "teen", emoji: "🧑", hint: "ados : des mots courants" },
+  adult: { label: "adulte", emoji: "🧔", hint: "mots plus rares, plus abstraits" },
+};
+export const levelLabel = (l: string) => `${LEVEL_INFO[l]?.emoji ?? ""} ${LEVEL_INFO[l]?.label ?? l}`.trim();
 
 // ------------------------------------------------------------------ API
 
@@ -37,29 +46,31 @@ async function api<T>(path: string): Promise<T> {
 }
 
 export const fetchMeta = (lang: string) => api<Meta>(`/api/${lang}/meta`);
-export const fetchGuess = (lang: string, round: number, word: string) =>
-  api<Omit<Guess, "input" | "n">>(`/api/${lang}/guess?round=${round}&w=${encodeURIComponent(word)}`);
-export const fetchHint = (lang: string, round: number, rank: number) =>
-  api<Omit<Guess, "input" | "n">>(`/api/${lang}/hint?round=${round}&rank=${rank}`);
+export const fetchGuess = (lang: string, level: string, round: number, word: string) =>
+  api<Omit<Guess, "input" | "n">>(`/api/${lang}/guess?level=${level}&round=${round}&w=${encodeURIComponent(word)}`);
+export const fetchHint = (lang: string, level: string, round: number, rank: number) =>
+  api<Omit<Guess, "input" | "n">>(`/api/${lang}/hint?level=${level}&round=${round}&rank=${rank}`);
 /** Nearest words: the server only answers for past rounds, or with the found word as proof. */
-export const fetchTop = (lang: string, round: number, found?: string) =>
-  api<Omit<Guess, "input" | "n">[]>(`/api/${lang}/top?round=${round}&n=100${found ? `&found=${encodeURIComponent(found)}` : ""}`).catch(() => []);
+export const fetchTop = (lang: string, level: string, round: number, found?: string) =>
+  api<Omit<Guess, "input" | "n">[]>(`/api/${lang}/top?level=${level}&round=${round}&n=100${found ? `&found=${encodeURIComponent(found)}` : ""}`).catch(() => []);
 
 // ------------------------------------------------------------------ persistence (per browser)
 
-const key = (lang: string, round: number) => `semantique:${lang}:r${round}`;
+// adult keeps the original keys, so games played before levels existed are still there
+const key = (lang: string, level: string, round: number) =>
+  level === "adult" ? `semantique:${lang}:r${round}` : `semantique:${lang}:${level}:r${round}`;
 
-export function loadState(lang: string, round: number): GameState {
+export function loadState(lang: string, level: string, round: number): GameState {
   try {
-    const s = localStorage.getItem(key(lang, round));
+    const s = localStorage.getItem(key(lang, level, round));
     if (s) return JSON.parse(s);
   } catch {}
   return { guesses: [], status: "playing" };
 }
 
-export function saveState(lang: string, round: number, s: GameState): void {
+export function saveState(lang: string, level: string, round: number, s: GameState): void {
   try {
-    localStorage.setItem(key(lang, round), JSON.stringify(s));
+    localStorage.setItem(key(lang, level, round), JSON.stringify(s));
   } catch {}
 }
 
@@ -71,10 +82,10 @@ export interface Stats {
   bestTries: number | null;
 }
 
-export function computeStats(lang: string, current: number): Stats {
+export function computeStats(lang: string, level: string, current: number): Stats {
   let played = 0, won = 0, today = 0, tries = 0, bestTries: number | null = null;
   for (let r = 1; r <= current; r++) {
-    const s = loadState(lang, r);
+    const s = loadState(lang, level, r);
     if (s.status === "playing") continue;
     played++;
     if (s.status === "won") {
@@ -91,14 +102,15 @@ export function computeStats(lang: string, current: number): Stats {
 // ------------------------------------------------------------------ hints
 
 /**
- * Next hint target: first a word in the top 1000, then each hint ~4x closer than the best word so far.
- * null when nothing closer than the best guess is left (except the secret itself).
+ * Next hint target: first a word in the top 1000 (kids: top 300), then each hint ~4x (kids: ~3x) closer
+ * than the best word so far; null when nothing closer is left. Keep in sync with server/data.ts.
  */
-export function nextHintRank(guesses: Guess[]): number | null {
+export function nextHintRank(guesses: Guess[], level = "adult"): number | null {
   const best = Math.min(...guesses.map((g) => g.rank), Infinity);
   if (best <= 1) return null;
   const known = new Set(guesses.map((g) => g.rank));
-  let r = best > 1000 ? 1000 : Math.max(1, Math.floor(best / 4));
+  const [first, factor] = level === "kid" ? [300, 3] : [1000, 4];
+  let r = best > first ? first : Math.max(1, Math.floor(best / factor));
   while (r >= 1 && known.has(r)) r--;
   return r >= 1 ? r : null;
 }

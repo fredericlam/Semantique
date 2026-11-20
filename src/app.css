@@ -23,15 +23,40 @@
   --font: "Outfit", system-ui, sans-serif;
   --mono: "Space Mono", ui-monospace, monospace;
   --script: "Yellowtail", cursive;
-  color-scheme: light dark;
+  color-scheme: light;
   font-family: var(--font);
   color: var(--ink);
   -webkit-text-size-adjust: 100%;
 }
 
 /* Night drive */
+/* Night drive — forced with data-theme="dark", or automatic when the device is in dark mode */
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --sky-top: #1b0f2e;
+    --sky-bottom: #3d1450;
+    --panel: #2a1745;
+    --panel-2: #351d57;
+    --ink: #ffe9dc;
+    --muted: #c49bc0;
+    --line: #ff5fa2;
+    --pink: #ff4f9a;
+    --pink-soft: #4a1d4f;
+    --peach: #ffab8a;
+    --teal: #2de2e6;
+    --teal-soft: #173d52;
+    --purple: #c58bff;
+    --tape: rgb(45 226 230 / 0.35);
+    --shadow: 0 0 0 2px var(--line), 0 0 18px rgb(255 79 154 / 0.35);
+    --shadow-sm: 0 0 10px rgb(255 79 154 / 0.3);
+    --grid: rgb(45 226 230 / 0.12);
+    --title-glow: 0 0 18px rgb(255 79 154 / 0.8);
+}
+
+/* "auto" (no data-theme): follow the device setting */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --sky-top: #1b0f2e;
     --sky-bottom: #3d1450;
     --panel: #2a1745;

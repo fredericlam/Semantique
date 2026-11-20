@@ -12,6 +12,8 @@ export interface Meta {
   period: number; // seconds per round
   rounds: number;
   chunk: number; // rounds per table file
+  levels: string[]; // difficulty levels, e.g. kid / teen / adult
+  defaultLevel: string;
   vocabSize: number;
   vecDims: number;
   credits: string[];
@@ -41,12 +43,16 @@ export const roundAt = (m: Meta, now = Date.now()) =>
   Math.min(Math.floor((now - Date.parse(m.start)) / (m.period * 1000)) + 1, m.rounds);
 export const roundStart = (m: Meta, n: number) => Date.parse(m.start) + (n - 1) * m.period * 1000;
 
-/** Next hint target: first a word in the top 1000, then ~4x closer than the best; null if nothing is left. */
-export function nextHintRank(ranks: number[]): number | null {
+/**
+ * Next hint target: first a word in the top 1000 (top 300 for kids), then ~4x (kids: ~3x) closer than
+ * the best guess; null if nothing is left. Keep in sync with src/lib/game.ts.
+ */
+export function nextHintRank(ranks: number[], level = "adult"): number | null {
   const best = Math.min(...ranks, Infinity);
   if (best <= 1) return null;
   const known = new Set(ranks);
-  let r = best > 1000 ? 1000 : Math.max(1, Math.floor(best / 4));
+  const [first, factor] = level === "kid" ? [300, 3] : [1000, 4];
+  let r = best > first ? first : Math.max(1, Math.floor(best / factor));
   while (r >= 1 && known.has(r)) r--;
   return r >= 1 ? r : null;
 }
@@ -77,11 +83,16 @@ export class GameData {
     return this.langs.get(code)!;
   }
 
-  round(L: Lang, n: number): Promise<Round | null> {
-    const key = `${L.meta.lang}/${n}`;
+  /** A valid level name (falls back to the default one). */
+  level(L: Lang, level: string | undefined | null): string {
+    return level && L.meta.levels?.includes(level) ? level : (L.meta.defaultLevel ?? "adult");
+  }
+
+  round(L: Lang, n: number, level: string): Promise<Round | null> {
+    const key = `${L.meta.lang}/${level}/${n}`;
     if (!this.rounds.has(key)) {
       const V = L.words.length;
-      const file = `${L.meta.lang}/private/rounds/${String(Math.floor((n - 1) / L.meta.chunk)).padStart(4, "0")}.bin`;
+      const file = `${L.meta.lang}/private/${level}/rounds/${String(Math.floor((n - 1) / L.meta.chunk)).padStart(4, "0")}.bin`;
       const p = this.store.get(file, { offset: ((n - 1) % L.meta.chunk) * 4 * V, length: 4 * V }).then((b) => {
         if (!b) return null;
         const buf = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
@@ -92,7 +103,7 @@ export class GameData {
         return { cos, rank, order };
       });
       p.then((v) => v ?? this.rounds.delete(key));
-      if (this.rounds.size >= 48) this.rounds.delete(this.rounds.keys().next().value!);
+      if (this.rounds.size >= 96) this.rounds.delete(this.rounds.keys().next().value!);
       this.rounds.set(key, p);
     }
     return this.rounds.get(key)!;

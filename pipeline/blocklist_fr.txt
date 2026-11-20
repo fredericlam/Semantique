@@ -1,1 +1,37 @@
-# Mots à ne jamais tirer comme mot secret (un par ligne) : grossiers, sensibles, trop obscurs...
+# Mots à ne jamais tirer comme mot secret, tous niveaux (un par ligne).
+# Grossièretés, insultes, sexe, termes blessants. Ils restent jouables : ils ne sont juste jamais le mot à trouver.
+abruti
+bite
+bordel
+branler
+chatte
+chier
+con
+conard
+connard
+connasse
+couille
+crétin
+cul
+débile
+enculer
+enculé
+foutre
+garce
+gouine
+merde
+nichon
+négro
+pd
+pédé
+pute
+putain
+pétasse
+salaud
+salope
+sexe
+sperme
+taré
+tapette
+viol
+violer

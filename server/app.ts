@@ -20,7 +20,7 @@ const ERROR_STATUS: Record<RoomError["error"], 400 | 401 | 403 | 404 | 409 | 500
 };
 const isError = (x: unknown): x is RoomError => typeof x === "object" && x !== null && "error" in x;
 
-type Vars = { L: Lang; n: number; current: number };
+type Vars = { L: Lang; n: number; current: number; level: string };
 
 export function createApp() {
   const app = new Hono<{ Bindings: Env; Variables: Vars }>().basePath("/api");
@@ -46,6 +46,7 @@ export function createApp() {
     c.set("L", L);
     c.set("n", n);
     c.set("current", current);
+    c.set("level", gameData(c.env.DATA).level(L, c.req.query("level")));
     await next();
   });
 
@@ -57,6 +58,7 @@ export function createApp() {
       currentStart: new Date(roundStart(m, current)).toISOString(),
       nextAt: new Date(roundStart(m, current + 1)).toISOString(),
       vocabSize: m.vocabSize, vecDims: m.vecDims, credits: m.credits, version: m.version,
+      levels: m.levels ?? ["adult"], defaultLevel: m.defaultLevel ?? "adult",
     });
   });
 
@@ -77,14 +79,14 @@ export function createApp() {
     const L = c.get("L"), data = gameData(c.env.DATA);
     const id = L.index.get(c.req.query("w") ?? "");
     if (id === undefined) return c.json({ error: "unknown word" }, 404);
-    const r = await data.round(L, c.get("n"));
+    const r = await data.round(L, c.get("n"), c.get("level"));
     return r ? c.json(data.entry(L, r, id)) : c.json({ error: "no data" }, 500);
   });
 
   /** A word at (or just above) the requested rank; never the secret. */
   app.get("/:lang/hint", async (c) => {
     const L = c.get("L"), data = gameData(c.env.DATA);
-    const r = await data.round(L, c.get("n"));
+    const r = await data.round(L, c.get("n"), c.get("level"));
     if (!r) return c.json({ error: "no data" }, 500);
     const k = Math.min(Math.max(1, Number(c.req.query("rank")) || 1000), r.order.length - 1);
     return c.json(data.entry(L, r, r.order[k]));
@@ -93,7 +95,7 @@ export function createApp() {
   /** Nearest words: for past rounds, or with proof of having found the secret (?found=word). */
   app.get("/:lang/top", async (c) => {
     const L = c.get("L"), data = gameData(c.env.DATA), n = c.get("n");
-    const r = await data.round(L, n);
+    const r = await data.round(L, n, c.get("level"));
     if (!r) return c.json({ error: "no data" }, 500);
     const found = L.index.get(c.req.query("found") ?? "");
     if (n >= c.get("current") && (found === undefined || r.rank[found] !== 0))
@@ -110,11 +112,13 @@ export function createApp() {
   });
 
   app.post("/:lang/rooms", async (c) => {
-    const { name, visibility } = await c.req.json<{ name?: string; visibility?: string }>().catch(() => ({} as { name?: string; visibility?: string }));
+    const { name, visibility, level } = await c.req.json<{ name?: string; visibility?: string; level?: string }>()
+      .catch(() => ({} as { name?: string; visibility?: string; level?: string }));
+    const lvl = gameData(c.env.DATA).level(c.get("L"), level);
     for (let i = 0; i < 6; i++) {
       const code = newCode();
       const stub = c.env.ROOMS.get(c.env.ROOMS.idFromName(code));
-      if (await stub.create(code, c.get("L").meta.lang, String(name ?? ""), visibility === "public" ? "public" : "private"))
+      if (await stub.create(code, c.get("L").meta.lang, String(name ?? ""), visibility === "public" ? "public" : "private", lvl))
         return c.json({ code }, 201);
     }
     return c.json({ error: "no free code" }, 500);

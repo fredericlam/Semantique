@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { listRooms, type PublicRoom } from "./lib/room.ts";
   import Icon from "./Icon.svelte";
+  import { levelLabel } from "./lib/game.ts";
 
   let { lang, current, onjoin, oncode, oncreate, onback }:
     { lang: string; current: number; onjoin: (code: string) => void; oncode: () => void; oncreate: () => void; onback: () => void } = $props();
@@ -58,7 +59,7 @@
       {#each rooms as r (r.code)}
         <li class="room">
           <div class="info">
-            <span class="name">{r.name}</span>
+            <span class="name">{r.name} <span class="lvl">{levelLabel(r.level)}</span></span>
             <span class="meta">
               {#if r.online}<span class="on">● {r.online} en ligne</span> · {/if}
               {r.players} joueur{r.players > 1 ? "s" : ""}
@@ -96,6 +97,7 @@
   .info { flex: 1; min-width: 0; display: grid; gap: 0.15rem; }
   .name { font-weight: 800; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .meta { font-size: 0.8rem; color: var(--muted); }
+  .lvl { font-size: 0.72rem; font-weight: 700; background: var(--panel-2); border-radius: 99px; padding: 0.05rem 0.45rem; vertical-align: 0.1em; }
   .on { color: #16a34a; font-weight: 700; }
   .join { background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 99px; padding: 0.35rem 0.85rem; font-weight: 700; white-space: nowrap; }
   .empty { background: var(--panel); border: 2px dashed var(--line); border-radius: 12px; padding: 0.4rem 1rem; text-align: center; }

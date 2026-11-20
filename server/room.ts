@@ -26,6 +26,7 @@ export interface Snapshot {
   code: string;
   name: string;
   visibility: Visibility;
+  level: string;
   owner: string | null; // display name of the creator, who can change the visibility
   round: number;
   players: { name: string; online: boolean; now: PlayerRound | null; points: number; wins: number }[];
@@ -120,7 +121,12 @@ export class Room extends DurableObject<Env> {
     }
     const ownerKey = this.meta("owner");
     const owner = ownerKey ? (this.sql.exec<{ name: string }>("SELECT name FROM players WHERE key = ?", ownerKey).toArray()[0]?.name ?? null) : null;
-    return { code, name: this.meta("name") || `Room ${code}`, visibility: this.visibility(), owner, round, players };
+    return { code, name: this.meta("name") || `Room ${code}`, visibility: this.visibility(), level: this.level(L), owner, round, players };
+  }
+
+  /** Rooms created before levels existed play the default (adult) level. */
+  private level(L: Lang): string {
+    return gameData(this.env.DATA).level(L, this.meta("level"));
   }
 
   private visibility(): Visibility {
@@ -138,7 +144,7 @@ export class Room extends DurableObject<Env> {
     try {
       if (snap.visibility !== "public") return await this.directory().remove(snap.code);
       await this.directory().upsert(lang, {
-        code: snap.code, name: snap.name, round: snap.round,
+        code: snap.code, name: snap.name, round: snap.round, level: snap.level,
         players: snap.players.length,
         online: snap.players.filter((p) => p.online).length,
         found: snap.players.filter((p) => p.now?.status === "won").length,
@@ -166,8 +172,9 @@ export class Room extends DurableObject<Env> {
 
   // ------------------------------------------------------------------ RPC
 
-  async create(code: string, lang: string, name = "", visibility: Visibility = "private"): Promise<boolean> {
+  async create(code: string, lang: string, name = "", visibility: Visibility = "private", level = "adult"): Promise<boolean> {
     if (this.meta("lang")) return false;
+    this.setMeta("level", level);
     this.setMeta("lang", lang);
     this.setMeta("code", code);
     this.setMeta("visibility", visibility === "public" ? "public" : "private");
@@ -224,7 +231,7 @@ export class Room extends DurableObject<Env> {
     const res = this.result(round, me.key);
     if (res && res.status !== "playing") return { error: "finished" };
     const ranks = this.sql.exec<{ rank: number }>("SELECT rank FROM guesses WHERE round = ? AND player = ?", round, me.key).toArray().map((r) => r.rank);
-    const r = await gameData(this.env.DATA).round(L, round);
+    const r = await gameData(this.env.DATA).round(L, round, this.level(L));
     if (!r) return { error: "no_data" };
     const picked = pick(L, ranks);
     if (picked === "unknown") return { error: "unknown_word" };
@@ -259,7 +266,7 @@ export class Room extends DurableObject<Env> {
   }
 
   hint(token: string) {
-    return this.record(token, (_, ranks) => nextHintRank(ranks), true);
+    return this.record(token, (L, ranks) => nextHintRank(ranks, this.level(L)), true);
   }
 
   async giveUp(token: string): Promise<{ ok: true } | RoomError> {
@@ -309,7 +316,7 @@ export class Room extends DurableObject<Env> {
     const L = await this.lang();
     if (!me || !L) return { error: "auth" };
     if (round >= roundAt(L.meta) && this.result(round, me.key)?.status !== "won") return { error: "locked" };
-    const r = await gameData(this.env.DATA).round(L, round);
+    const r = await gameData(this.env.DATA).round(L, round, this.level(L));
     if (!r) return { error: "no_data" };
     const players = this.sql.exec<{ key: string; name: string }>("SELECT key, name FROM players ORDER BY joined").toArray().map((p) => ({
       name: p.name,

@@ -1,0 +1,45 @@
+# Niveau kid (7–11 ans) : en plus de blocklist_fr.txt.
+# Mots trop vagues pour être devinés par un enfant
+arrière
+bord
+bout
+coin
+côté
+coup
+endroit
+espèce
+face
+instant
+kilomètre
+lueur
+mètre
+morceau
+allure
+trajet
+# Alcool, tabac, drogue
+alcool
+bière
+champagne
+cigare
+cigarette
+drogue
+tabac
+vin
+whisky
+# Violence, mort, corps « adulte »
+arme
+balle
+cadavre
+crâne
+chair
+cuisse
+fusil
+gorge
+lard
+nuque
+pistolet
+poing
+poitrine
+sang
+torse
+tombe

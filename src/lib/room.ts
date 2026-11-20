@@ -16,6 +16,7 @@ export interface Snapshot {
   code: string;
   name: string;
   visibility: Visibility;
+  level: string;
   owner: string | null;
   round: number;
   players: { name: string; online: boolean; now: PlayerRound | null; points: number; wins: number }[];
@@ -64,6 +65,7 @@ export const cleanCode = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, ""
 export interface PublicRoom {
   code: string;
   name: string;
+  level: string;
   players: number;
   online: number;
   found: number;
@@ -72,7 +74,8 @@ export interface PublicRoom {
 }
 
 export const listRooms = (lang: string) => call<PublicRoom[]>(lang, "");
-export const createRoom = (lang: string, name: string, visibility: Visibility) => call<{ code: string }>(lang, "", { name, visibility });
+export const createRoom = (lang: string, name: string, visibility: Visibility, level: string) =>
+  call<{ code: string }>(lang, "", { name, visibility, level });
 export const roomResume = (lang: string, s: Session) => call<{ ok: true }>(lang, `/${s.code}/resume`, { token: s.token });
 export const roomSetVisibility = (lang: string, s: Session, visibility: Visibility) =>
   call<{ ok: true }>(lang, `/${s.code}/visibility`, { token: s.token, visibility });
