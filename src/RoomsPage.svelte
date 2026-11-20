@@ -75,8 +75,11 @@
 
   {#if currentRoom}
     <button class="current" onclick={onresume}>
-      <span class="live">↩ dernière room</span>
-      <span class="info"><span class="name">{currentRoom.name}</span><span class="meta">code <strong>{currentRoom.code}</strong></span></span>
+      <span class="ribbon">dernière room</span>
+      <span class="cur-info">
+        <span class="cur-name">{currentRoom.name}</span>
+        <span class="cur-code">code <strong>{currentRoom.code}</strong></span>
+      </span>
       <span class="go-back">reprendre <Icon name="arrow-right" /></span>
     </button>
   {/if}
@@ -167,13 +170,30 @@
   .lvl { display: inline-flex; font-size: 0.72rem; font-weight: 700; background: var(--panel-2); border-radius: 99px; padding: 0.05rem 0.45rem; vertical-align: 0.1em; }
   .on { color: #16a34a; font-weight: 700; }
   .current {
-    display: flex; align-items: center; gap: 0.7rem; width: 100%; margin: 0 0 1rem; padding: 0.75rem 0.9rem; text-align: left;
-    background: linear-gradient(100deg, var(--sun-a), var(--pink)); color: #2a1440; border: 2px solid var(--line);
-    border-radius: 14px; box-shadow: var(--shadow); font: inherit;
+    position: relative; display: flex; align-items: center; gap: 0.8rem; width: 100%; margin: 8px 0 1.1rem;
+    padding: 1.15rem 0.9rem 0.85rem; text-align: left; overflow: hidden;
+    background: linear-gradient(100deg, var(--sun-a), var(--pink)); color: #2a1440;
+    border: 2px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); font: inherit; cursor: pointer;
   }
-  .current .live { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; background: white; color: #16a34a; border-radius: 99px; padding: 0.15rem 0.5rem; white-space: nowrap; }
-  .current .meta { color: #2a1440; opacity: 0.8; }
-  .go-back { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 800; white-space: nowrap; }
+  /* diagonal ribbon across the top-left corner */
+  .ribbon {
+    position: absolute; top: 14px; left: -34px; width: 140px; rotate: -32deg; text-align: center;
+    background: #2a1440; color: #fff6ee; font-family: var(--mono); font-size: 0.56rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em; padding: 0.12rem 0; box-shadow: 0 2px 0 rgb(0 0 0 / 0.15);
+  }
+  .cur-info { flex: 1; min-width: 0; display: grid; gap: 0.15rem; padding-left: 1.9rem; }
+  .cur-name {
+    font-weight: 800; font-size: 1.15rem; line-height: 1.15; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .cur-code { white-space: nowrap; font-size: 0.8rem; }
+  .cur-code strong { font-family: var(--mono); letter-spacing: 0.12em; }
+  .go-back {
+    display: inline-flex; align-items: center; gap: 0.35rem; flex: none; white-space: nowrap;
+    background: #2a1440; color: white; font-weight: 800; font-size: 0.85rem; padding: 0.45rem 0.75rem; border-radius: 99px;
+    box-shadow: 3px 3px 0 rgb(255 255 255 / 0.6);
+  }
+  .current:active .go-back { translate: 2px 2px; box-shadow: none; }
   .here { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; background: #16a34a; color: white; border-radius: 99px; padding: 0.05rem 0.45rem; margin-left: 0.35rem; vertical-align: 0.15em; }
   .code { font-family: var(--mono); font-weight: 700; letter-spacing: 0.1em; background: var(--panel-2); border: 0; border-radius: 6px; padding: 0 0.35rem; color: var(--ink); font-size: 0.8rem; }
   .room.gone { opacity: 0.6; }
