@@ -10,7 +10,7 @@
   import HistoryList from "./HistoryList.svelte";
   import {
     cleanCode, connect, createRoom, joinRoom, lastName, lastRoom, roomGiveUp, roomGuess, roomHint, roomMine, roomResume,
-    roomReveal, roomSetVisibility, roomState, savedSession, saveSession, rememberRoom, myRooms, type RoomGuess, type Session, type Snapshot, type Visibility,
+    roomReveal, roomSetVisibility, roomState, savedSession, saveSession, rememberRoom, myRooms, roomRename, type RoomGuess, type Session, type Snapshot, type Visibility,
   } from "./lib/room.ts";
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, level, temperature } from "./lib/heat.ts";
@@ -314,6 +314,25 @@
     }
   }
 
+  /** New player name in the current room; reconnects the live feed under the new identity. */
+  async function renameMe(name: string): Promise<string | null> {
+    if (!session) return null;
+    try {
+      const res = await roomRename(LANG, session, name);
+      session = { ...session, name: res.name };
+      saveSession(session);
+      disconnect?.();
+      disconnect = connect(LANG, session, {
+        snapshot: (x) => { snap = x; rememberRoom(x.code, { roomName: x.name, level: x.level }); },
+        event: toast,
+        status: (v) => (connected = v),
+      });
+      return null;
+    } catch (e) {
+      return (e as Error).message;
+    }
+  }
+
   async function toggleVisibility() {
     if (!session || !snap) return;
     try {
@@ -527,7 +546,7 @@
   {:else}
     {#if session && snap}
       <button class="room-back" onclick={leaveRoom}><Icon name="arrow-left" /> mes rooms</button>
-      <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} ontogglevisibility={toggleVisibility} />
+      <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} ontogglevisibility={toggleVisibility} onrename={renameMe} />
     {:else}
       {#if SHOW_LEVELS}
       <div class="levels" role="radiogroup" aria-label="Niveau de difficulté">

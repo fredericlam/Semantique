@@ -284,6 +284,30 @@ export class Room extends DurableObject<Env> {
     return { ok: true };
   }
 
+  /** Change my player name in this room (unique, case-insensitive). History and points follow. */
+  async rename(token: string, name: string): Promise<{ token: string; name: string } | RoomError> {
+    const me = this.player(token);
+    if (!me) return { error: "auth" };
+    const clean = name.normalize("NFC").trim().replace(/\s+/g, " ");
+    if (clean.length < 1 || clean.length > 20) return { error: "bad_name" };
+    const key = nameKey(clean);
+    if (key !== me.key && this.sql.exec("SELECT 1 FROM players WHERE key = ?", key).toArray().length) return { error: "taken" };
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec("UPDATE players SET key = ?, name = ? WHERE key = ?", key, clean, me.key);
+      if (key !== me.key) {
+        this.sql.exec("UPDATE guesses SET player = ? WHERE player = ?", key, me.key);
+        this.sql.exec("UPDATE results SET player = ? WHERE player = ?", key, me.key);
+        if (this.meta("owner") === me.key) this.setMeta("owner", key);
+      }
+    });
+    // live sockets are tagged with the old key: close them, the client reconnects with the new identity
+    if (key !== me.key) for (const ws of this.ctx.getWebSockets(me.key)) { try { ws.close(4000, "renamed"); } catch {} }
+    this.touch();
+    await this.broadcast();
+    if (clean !== me.name) this.event(`✏️ ${me.name} s'appelle maintenant ${clean}`);
+    return { token, name: clean };
+  }
+
   /** Undo a give-up while the hour is still running (the word was not revealed). */
   async resume(token: string): Promise<{ ok: true } | RoomError> {
     const me = this.player(token);

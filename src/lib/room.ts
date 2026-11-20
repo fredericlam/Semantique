@@ -76,6 +76,8 @@ export interface PublicRoom {
 export const listRooms = (lang: string) => call<PublicRoom[]>(lang, "");
 export const createRoom = (lang: string, name: string, visibility: Visibility, level: string) =>
   call<{ code: string }>(lang, "", { name, visibility, level });
+export const roomRename = (lang: string, s: Session, name: string) =>
+  call<{ token: string; name: string }>(lang, `/${s.code}/rename`, { token: s.token, name });
 export const roomResume = (lang: string, s: Session) => call<{ ok: true }>(lang, `/${s.code}/resume`, { token: s.token });
 export const roomSetVisibility = (lang: string, s: Session, visibility: Visibility) =>
   call<{ ok: true }>(lang, `/${s.code}/visibility`, { token: s.token, visibility });

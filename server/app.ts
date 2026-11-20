@@ -169,6 +169,11 @@ export function createApp() {
     return reply(c, await room(c).giveUp(token));
   });
 
+  app.post("/:lang/rooms/:code/rename", async (c) => {
+    const { token, name } = await c.req.json<{ token: string; name: string }>();
+    return reply(c, await room(c).rename(token, String(name ?? "")));
+  });
+
   app.post("/:lang/rooms/:code/resume", async (c) => {
     const { token } = await c.req.json<{ token: string }>();
     return reply(c, await room(c).resume(token));
