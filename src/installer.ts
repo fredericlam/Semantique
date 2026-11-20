@@ -2,9 +2,6 @@ import { renderSVG } from "uqr";
 import "./app.css";
 import "./installer.css";
 import { registerSW } from "./lib/pwa.ts";
-import { iconSvg, type IconName } from "./lib/icons.ts";
-
-document.querySelectorAll<HTMLElement>("i[data-icon]").forEach((el) => (el.outerHTML = iconSvg(el.dataset.icon as IconName)));
 
 type Platform = "ios" | "android" | "desktop";
 

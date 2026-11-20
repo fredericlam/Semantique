@@ -1,23 +1,19 @@
 /** One readable scale, derived from the rank (0 = secret word) — gives a gradient from the very first guess. */
 
-import type { IconName } from "./icons.ts";
-
 export interface Level {
   maxRank: number;
   label: string;
-  icon: IconName; // pixel icon shown in the UI
-  color: string;
-  emoji: string; // only for the shared text, where icons can't go
+  emoji: string;
 }
 
 export const LEVELS: Level[] = [
-  { maxRank: 0, label: "trouvé", icon: "target", color: "#d628c8", emoji: "🎯" },
-  { maxRank: 10, label: "brûlant", icon: "fire", color: "#ff3d8b", emoji: "🔥" },
-  { maxRank: 100, label: "très chaud", icon: "sun-solid", color: "#ff6a3d", emoji: "🥵" },
-  { maxRank: 500, label: "chaud", icon: "sun", color: "#f59e0b", emoji: "☀️" },
-  { maxRank: 2000, label: "tiède", icon: "cloud-sun", color: "#e88a6a", emoji: "🌤️" },
-  { maxRank: 8000, label: "frais", icon: "waves", color: "#12a9b8", emoji: "🌊" },
-  { maxRank: Infinity, label: "froid", icon: "snowflake", color: "#4f8dff", emoji: "🧊" },
+  { maxRank: 0, label: "trouvé", emoji: "🎯" },
+  { maxRank: 10, label: "brûlant", emoji: "🔥" },
+  { maxRank: 100, label: "très chaud", emoji: "🥵" },
+  { maxRank: 500, label: "chaud", emoji: "☀️" },
+  { maxRank: 2000, label: "tiède", emoji: "🌴" },
+  { maxRank: 8000, label: "frais", emoji: "🌊" },
+  { maxRank: Infinity, label: "froid", emoji: "🧊" },
 ];
 
 export const level = (rank: number) => LEVELS.find((l) => rank <= l.maxRank)!;

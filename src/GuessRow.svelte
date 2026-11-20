@@ -1,7 +1,6 @@
 <script lang="ts">
   import { heat, heatColor, level } from "./lib/heat.ts";
   import type { Guess } from "./lib/game.ts";
-  import Icon from "./Icon.svelte";
 
   let { g, vocabSize, flash = false, compact = false, big = false }:
     { g: Guess; vocabSize: number; flash?: boolean; compact?: boolean; big?: boolean } = $props();
@@ -21,7 +20,7 @@
     {#if g.hint}<span class="tag">indice</span>{/if}
     {#if g.input}<span class="input">← {g.input}</span>{/if}
   </span>
-  <span class="label"><Icon name={lv.icon} color={lv.color} size="1.2em" /><span class="lt">{lv.label}</span></span>
+  <span class="label"><span class="emoji" aria-hidden="true">{lv.emoji}</span><span class="lt">{lv.label}</span></span>
   <span class="temp">
     <span class="deg">{h === 100 ? "100" : h.toFixed(1).replace(".", ",")}°</span>
     {#if g.rank > 0}<span class="rank">n°{g.rank.toLocaleString("fr-FR")}</span>{/if}
@@ -72,6 +71,7 @@
     background: var(--teal); color: #10233a; padding: 0.05rem 0.4rem; border-radius: 4px; transform: rotate(-3deg);
   }
   .label { display: flex; align-items: center; gap: 0.3rem; font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
+  .emoji { font-size: 1rem; }
   .temp { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; }
   .deg { font-family: var(--mono); font-weight: 700; font-size: 1.05rem; letter-spacing: -0.03em; }
   .rank { font-family: var(--mono); font-size: 0.66rem; color: var(--muted); }
