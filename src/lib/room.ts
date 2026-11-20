@@ -94,7 +94,15 @@ export const roomReveal = (lang: string, s: Session, round: number) =>
 
 const KEY = "semantique:rooms";
 
-function saved(): Record<string, { name: string; token: string }> {
+interface SavedRoom {
+  name: string; // my player name in that room
+  token: string;
+  roomName?: string; // last known room name / level, to show the list offline
+  level?: string;
+  seen?: number; // last time I was in it
+}
+
+function saved(): Record<string, SavedRoom> {
   try {
     return JSON.parse(localStorage.getItem(KEY) ?? "{}");
   } catch {
@@ -104,13 +112,39 @@ function saved(): Record<string, { name: string; token: string }> {
 
 export const savedSession = (code: string): Session | null => {
   const s = saved()[code];
-  return s ? { code, ...s } : null;
+  return s ? { code, name: s.name, token: s.token } : null;
 };
+
+/** Rooms I created or joined on this device, most recent first. */
+export function myRooms(): (SavedRoom & { code: string })[] {
+  return Object.entries(saved())
+    .map(([code, r]) => ({ code, ...r }))
+    .sort((a, b) => (b.seen ?? 0) - (a.seen ?? 0));
+}
+
+/** Remember the room's name/level next to my session (for the "mes rooms" list). */
+export function rememberRoom(code: string, info: { roomName: string; level: string }) {
+  try {
+    const all = saved();
+    if (all[code]) all[code] = { ...all[code], ...info, seen: Date.now() };
+    localStorage.setItem(KEY, JSON.stringify(all));
+  } catch {}
+}
+
+/** Drop a room from this device entirely (its token too: the player name can't be reclaimed). */
+export function forgetRoom(code: string) {
+  try {
+    const all = saved();
+    delete all[code];
+    localStorage.setItem(KEY, JSON.stringify(all));
+    if (localStorage.getItem("semantique:room") === code) localStorage.removeItem("semantique:room");
+  } catch {}
+}
 
 export function saveSession(s: Session | null, forget?: string) {
   try {
     const all = saved();
-    if (s) all[s.code] = { name: s.name, token: s.token };
+    if (s) all[s.code] = { ...all[s.code], name: s.name, token: s.token, seen: Date.now() };
     if (forget) {
       localStorage.removeItem("semantique:room");
     } else if (s) localStorage.setItem("semantique:room", s.code);

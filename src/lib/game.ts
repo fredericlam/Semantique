@@ -30,6 +30,12 @@ export interface Meta {
   defaultLevel: string;
 }
 
+/**
+ * Difficulty levels are built and served (kid / teen / adult) but hidden in the UI for now:
+ * everyone plays "adult". Flip to true to bring back the pickers and level tags.
+ */
+export const SHOW_LEVELS = false;
+
 /** icon: Phosphor icon (UI); emoji: same idea for plain text (share message). */
 export const LEVEL_INFO: Record<string, { label: string; icon: "backpack" | "headphones" | "coffee"; emoji: string; hint: string }> = {
   kid: { label: "kid", icon: "backpack", emoji: "🎒", hint: "7–11 ans : des mots concrets du quotidien" },

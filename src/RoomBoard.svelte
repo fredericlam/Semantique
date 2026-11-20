@@ -2,6 +2,7 @@
   import { heat, level } from "./lib/heat.ts";
   import type { Snapshot } from "./lib/room.ts";
   import LevelTag from "./LevelTag.svelte";
+  import { SHOW_LEVELS } from "./lib/game.ts";
 
   let { snap, me, vocabSize, connected, onshare, onleave, ontogglevisibility }:
     { snap: Snapshot; me: string; vocabSize: number; connected: boolean; onshare: () => void; onleave: () => void; ontogglevisibility: () => void } = $props();
@@ -27,7 +28,7 @@
   <span class="tape" aria-hidden="true"></span>
   <header>
     <div class="title">
-      <span class="room-name">{snap.name} <span class="lvl"><LevelTag level={snap.level} /></span></span>
+      <span class="room-name">{snap.name} {#if SHOW_LEVELS}<span class="lvl"><LevelTag level={snap.level} /></span>{/if}</span>
       <span class="meta-line">
         <span class="dot" class:on={connected} title={connected ? "en direct" : "reconnexion…"}></span>
         <span class="kicker">code</span> <span class="code">{snap.code}</span>

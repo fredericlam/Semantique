@@ -10,12 +10,12 @@
   import HistoryList from "./HistoryList.svelte";
   import {
     cleanCode, connect, createRoom, joinRoom, lastName, lastRoom, roomGiveUp, roomGuess, roomHint, roomMine, roomResume,
-    roomReveal, roomSetVisibility, roomState, savedSession, saveSession, type RoomGuess, type Session, type Snapshot, type Visibility,
+    roomReveal, roomSetVisibility, roomState, savedSession, saveSession, rememberRoom, type RoomGuess, type Session, type Snapshot, type Visibility,
   } from "./lib/room.ts";
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, level, temperature } from "./lib/heat.ts";
   import {
-    buildTracks, computeStats, fetchGuess, fetchHistory, fetchHint, fetchMeta, fetchTop, loadState, nextHintRank, saveState, LEVEL_INFO, levelLabel,
+    buildTracks, computeStats, fetchGuess, fetchHistory, SHOW_LEVELS, fetchHint, fetchMeta, fetchTop, loadState, nextHintRank, saveState, LEVEL_INFO, levelLabel,
     type GameState, type Guess, type Meta,
   } from "./lib/game.ts";
 
@@ -58,7 +58,7 @@
   let joinName = $state("");
   let roomName = $state("");
   let roomVisibility = $state<Visibility>("public");
-  let soloLevel = $state<string>((() => { try { return localStorage.getItem("semantique:level") ?? "adult"; } catch { return "adult"; } })());
+  let soloLevel = $state<string>(SHOW_LEVELS ? (() => { try { return localStorage.getItem("semantique:level") ?? "adult"; } catch { return "adult"; } })() : "adult");
   let createLevel = $state("adult");
   /** In a room, its level; otherwise the one picked on this device. */
   const playLevel = $derived(session && snap ? snap.level : soloLevel);
@@ -67,7 +67,7 @@
   let joinError = $state("");
   let joinBusy = $state(false);
   let disconnect: (() => void) | null = null;
-  let history = $state<{ round: number; word: string }[]>([]);
+  let pastWords = $state<{ round: number; word: string }[]>([]);
   let bugDialog = $state<{ open: () => void }>();
 
   /** Technical context for bug reports — never the room code nor the guessed words. */
@@ -110,7 +110,7 @@
   }
 
   async function loadHistory() {
-    history = await fetchHistory(LANG, playLevel);
+    pastWords = await fetchHistory(LANG, playLevel);
   }
 
   async function openRound(n: number) {
@@ -186,7 +186,7 @@
 
   function openRoomDialog(code = "", mode: "join" | "create" = "join") {
     dialogMode = mode;
-    createLevel = soloLevel;
+    createLevel = SHOW_LEVELS ? soloLevel : "adult";
     joinCode = code;
     joinName = joinName || lastName();
     joinError = "";
@@ -197,10 +197,14 @@
     disconnect?.();
     session = s;
     saveSession(s);
-    history.replaceState(null, "", `/room/${s.code}`);
+    history.replaceState(null, "", page === "rooms" ? "/rooms" : `/room/${s.code}`);
     snap = await roomState(LANG, s.code);
+    rememberRoom(s.code, { roomName: snap.name, level: snap.level });
     disconnect = connect(LANG, s, {
-      snapshot: (x) => (snap = x),
+      snapshot: (x) => {
+        snap = x;
+        rememberRoom(x.code, { roomName: x.name, level: x.level });
+      },
       event: toast,
       status: (v) => (connected = v),
     });
@@ -274,6 +278,20 @@
     addEventListener("popstate", onPop);
     return () => removeEventListener("popstate", onPop);
   });
+
+  /** Back into a room I already joined on this device (no code, no name to type). */
+  async function enterSaved(code: string) {
+    const s = savedSession(code);
+    if (!s) return openRoomDialog(code, "join");
+    try {
+      const ok = await joinRoom(LANG, code, s.name, s.token);
+      page = "game";
+      await enterRoom({ ...s, name: ok.name });
+      scrollTo({ top: 0 });
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  }
 
   async function toggleVisibility() {
     if (!session || !snap) return;
@@ -435,7 +453,7 @@
 
   function shareText() {
     const counts = LEVELS.slice(1).map((l) => [l, game.guesses.filter((g) => !g.hint && level(g.rank) === l).length] as const);
-    const label = `Sémantique 🌴 mot de ${roundLabel(round)} · ${levelLabel(playLevel)}${session ? ` · room ${snap?.name ?? session.code}` : ""}`;
+    const label = `Sémantique 🌴 mot de ${roundLabel(round)}${SHOW_LEVELS ? ` · ${levelLabel(playLevel)}` : ""}${session ? ` · room ${snap?.name ?? session.code}` : ""}`;
     const head = game.status === "won"
       ? `${label} — 🎯 en ${tries} essai${tries > 1 ? "s" : ""}${hints ? ` (${hints} 💡)` : ""}`
       : `${label} — 🏳️ abandon, meilleur ${best && meta ? temperature(best.rank, meta.vocabSize).toFixed(1) : "0"}°`;
@@ -481,7 +499,10 @@
     <RoomsPage
       lang={LANG}
       current={meta.current}
-      onjoin={(code) => openRoomDialog(code, "join")}
+      onjoin={(code) => (savedSession(code) ? enterSaved(code) : openRoomDialog(code, "join"))}
+      onenter={enterSaved}
+      currentRoom={session ? { code: session.code, name: snap?.name ?? session.code } : null}
+      onresume={() => goPage("game")}
       oncode={() => openRoomDialog("", "join")}
       oncreate={() => openRoomDialog("", "create")}
       onback={() => goPage("game")}
@@ -490,6 +511,7 @@
     {#if session && snap}
       <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} onleave={leaveRoom} ontogglevisibility={toggleVisibility} />
     {:else}
+      {#if SHOW_LEVELS}
       <div class="levels" role="radiogroup" aria-label="Niveau de difficulté">
         {#each meta.levels as l (l)}
           <button role="radio" aria-checked={soloLevel === l} class:on={soloLevel === l} onclick={() => setLevel(l)} title={LEVEL_INFO[l]?.hint}>
@@ -497,6 +519,7 @@
           </button>
         {/each}
       </div>
+      {/if}
       <button class="room-cta" onclick={() => goPage("rooms")}>
         <span class="cta-emoji"><Icon name="users" size="1.9rem" /></span>
         <span class="cta-text"><strong>Rejoins une room</strong><small>joue à plusieurs sur le mot de l'heure</small></span>
@@ -652,7 +675,7 @@
     {/if}
 
     <HistoryList
-      items={history}
+      items={pastWords}
       label={roundLabel}
       status={session ? null : (n) => loadState(LANG, soloLevel, n)}
       current={meta.current}
@@ -694,7 +717,7 @@
       <li><span class="emoji">{l.emoji}</span> <strong>{l.label}</strong> <span class="muted mono small">{i === 0 ? "100°" : l.maxRank === Infinity ? `< ${temperature(LEVELS[i - 1].maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°` : `≥ ${temperature(l.maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°`}</span></li>
     {/each}
   </ul>
-  <p><strong>3 niveaux</strong>, chacun avec son propre mot de l'heure : <strong><LevelTag level="kid" /></strong> (7–11 ans, mots concrets, indices plus généreux), <strong><LevelTag level="teen" /></strong> et <strong><LevelTag level="adult" /></strong>.</p>
+  {#if SHOW_LEVELS}<p><strong>3 niveaux</strong>, chacun avec son propre mot de l'heure : <strong><LevelTag level="kid" /></strong> (7–11 ans, mots concrets, indices plus généreux), <strong><LevelTag level="teen" /></strong> et <strong><LevelTag level="adult" /></strong>.</p>{/if}
   <p>Zéro piège d'orthographe : <em>chevaux</em> = <em>cheval</em>, <em>mangeait</em> = <em>manger</em>, accents facultatifs.</p>
   <p><strong>Pistes</strong> regroupe tes essais par thème. Coincé ? <strong><Icon name="lightbulb" /> indice</strong> te donne un mot plus proche que ton meilleur.</p>
   {#if !isStandalone()}
@@ -735,6 +758,7 @@
         <span>Nom de la room <span class="muted">(facultatif)</span></span>
         <input bind:value={roomName} maxlength="30" placeholder="ex. Les Flamants roses" autocomplete="off" />
       </label>
+      {#if SHOW_LEVELS}
       <fieldset class="vis">
         <legend>Niveau</legend>
         <div class="levels in-dialog" role="radiogroup" aria-label="Niveau de la room">
@@ -743,6 +767,7 @@
           {/each}
         </div>
       </fieldset>
+      {/if}
       <fieldset class="vis">
         <legend>Visibilité</legend>
         <label class:on={roomVisibility === "public"}>

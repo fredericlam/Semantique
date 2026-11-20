@@ -21,7 +21,7 @@ Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantl
 | **Rooms** : serveur (Durable Object) | ✅ en ligne |
 | **Rooms** : interface (rejoindre, tableau en direct, classement, parcours) | ✅ fait, testé en local à 3 joueurs |
 | Mise en ligne sur Cloudflare | ✅ https://semantique.flaaam.workers.dev |
-| Niveaux 🧒 kid / 🧑 teen / 🧔 adulte (un mot secret par niveau et par heure) | ✅ |
+| Niveaux kid / teen / adulte (un mot secret par niveau et par heure) | ✅ côté serveur et données ; **masqués dans l'interface** (tout le monde en adulte, `SHOW_LEVELS` dans `src/lib/game.ts`) |
 | Thème clair / sombre / auto (pied de page) | ✅ |
 | Version anglaise | 🧩 préparée, pas branchée |
 | Classement général hors rooms (D1) | 💤 reporté |
@@ -41,6 +41,7 @@ Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantl
 - **Thème** : 🌓 auto (suit l'appareil), ☀️ clair ou 🌙 sombre, au choix en pied de page.
 - **Pistes** : tes essais sont regroupés automatiquement par thème.
 - **Abandonner** ne révèle le mot qu'à la fin de l'heure, pour ne pas fausser la compétition dans les rooms. Tant que l'heure n'est pas finie, on peut **reprendre la partie** (↩️).
+- **Mes rooms** : la page `/rooms` liste les rooms créées ou rejointes sur l'appareil (nom, code copiable, ton nom de joueur), avec un bouton « entrer » sans rien retaper, et met en avant la room en cours.
 - **Rooms publiques ou privées** : la page `/rooms` liste les rooms publiques, triées par activité, avec un bouton « rejoindre ». Une room privée ne se rejoint qu'avec son code. Le créateur peut changer la visibilité à tout moment. Chaque room a un nom libre, distinct de son code.
 - **Rooms** : un code de 5 caractères (sans O/0 ni I/1) et un pseudo, refusé s'il est déjà pris dans la room. Tout le monde joue le mot de l'heure. La progression des autres s'affiche en direct, sans leurs mots. Points par manche : 5 / 3 / 2 pour les trois premiers à trouver, puis 1, avec +1 si aucun indice n'a été utilisé. Une room s'efface après 30 jours sans activité. On la rejoint par le bouton 👥 ou par un lien `/room/CODE` ; en rouvrant l'app, on retrouve automatiquement sa dernière room.
 

@@ -1,11 +1,44 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { listRooms, type PublicRoom } from "./lib/room.ts";
+  import { forgetRoom, listRooms, myRooms, roomState, type PublicRoom } from "./lib/room.ts";
   import Icon from "./Icon.svelte";
   import LevelTag from "./LevelTag.svelte";
+  import { SHOW_LEVELS } from "./lib/game.ts";
 
-  let { lang, current, onjoin, oncode, oncreate, onback }:
-    { lang: string; current: number; onjoin: (code: string) => void; oncode: () => void; oncreate: () => void; onback: () => void } = $props();
+  let { lang, current, onjoin, onenter, oncode, oncreate, onback, currentRoom, onresume }: {
+    lang: string; current: number; onjoin: (code: string) => void; onenter: (code: string) => void;
+    oncode: () => void; oncreate: () => void; onback: () => void;
+    currentRoom: { code: string; name: string } | null; onresume: () => void;
+  } = $props();
+
+  // rooms created/joined on this device, refreshed from the server
+  type Mine = ReturnType<typeof myRooms>[number] & { players?: number; gone?: boolean };
+  let mine = $state<Mine[]>(myRooms());
+  let copied = $state<string | null>(null);
+
+  async function refreshMine() {
+    mine = await Promise.all(myRooms().map(async (r) => {
+      try {
+        const s = await roomState(lang, r.code);
+        return { ...r, roomName: s.name, level: s.level, players: s.players.length };
+      } catch (e) {
+        return { ...r, gone: (e as { code?: string }).code === "not_found" };
+      }
+    }));
+  }
+
+  async function copy(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      copied = code;
+      setTimeout(() => (copied = null), 1500);
+    } catch {}
+  }
+
+  function forget(code: string) {
+    forgetRoom(code);
+    mine = mine.filter((r) => r.code !== code);
+  }
 
   let rooms = $state<PublicRoom[] | null>(null);
   let error = $state("");
@@ -21,6 +54,7 @@
 
   onMount(() => {
     load();
+    refreshMine();
     const t = setInterval(load, 20_000);
     return () => clearInterval(t);
   });
@@ -39,10 +73,42 @@
   <h2>les rooms</h2>
   <p class="lead">Même mot de l'heure pour tout le monde, progression en direct, classement entre vous.</p>
 
+  {#if currentRoom}
+    <button class="current" onclick={onresume}>
+      <span class="live">● en cours</span>
+      <span class="info"><span class="name">{currentRoom.name}</span><span class="meta">code <strong>{currentRoom.code}</strong></span></span>
+      <span class="go-back">reprendre <Icon name="arrow-right" /></span>
+    </button>
+  {/if}
+
   <div class="ctas">
     <button class="go" onclick={oncreate}>✨ créer une room</button>
     <button class="pill" onclick={oncode}>🔑 j'ai un code</button>
   </div>
+
+  {#if mine.length}
+    <h3>🗝️ mes rooms</h3>
+    <ul class="list">
+      {#each mine as r (r.code)}
+        <li class="room" class:gone={r.gone}>
+          <div class="info">
+            <span class="name">{r.roomName ?? `Room ${r.code}`} {#if SHOW_LEVELS && r.level}<span class="lvl"><LevelTag level={r.level} /></span>{/if}{#if currentRoom?.code === r.code}<span class="here">en cours</span>{/if}</span>
+            <span class="meta">
+              <button class="code" onclick={() => copy(r.code)} title="Copier le code">{copied === r.code ? "copié ✓" : r.code}</button>
+              · toi : <strong>{r.name}</strong>
+              {#if r.players} · {r.players} joueur{r.players > 1 ? "s" : ""}{/if}
+              {#if r.gone} · <span class="warn">expirée</span>{/if}
+            </span>
+          </div>
+          {#if r.gone}
+            <button class="forget" onclick={() => forget(r.code)}>retirer</button>
+          {:else}
+            <button class="join" onclick={() => onenter(r.code)}>entrer</button>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  {/if}
 
   <h3>🌍 rooms publiques</h3>
   {#if error}
@@ -59,7 +125,7 @@
       {#each rooms as r (r.code)}
         <li class="room">
           <div class="info">
-            <span class="name">{r.name} <span class="lvl"><LevelTag level={r.level} /></span></span>
+            <span class="name">{r.name} {#if SHOW_LEVELS}<span class="lvl"><LevelTag level={r.level} /></span>{/if}</span>
             <span class="meta">
               {#if r.online}<span class="on">● {r.online} en ligne</span> · {/if}
               {r.players} joueur{r.players > 1 ? "s" : ""}
@@ -99,6 +165,19 @@
   .meta { font-size: 0.8rem; color: var(--muted); }
   .lvl { display: inline-flex; font-size: 0.72rem; font-weight: 700; background: var(--panel-2); border-radius: 99px; padding: 0.05rem 0.45rem; vertical-align: 0.1em; }
   .on { color: #16a34a; font-weight: 700; }
+  .current {
+    display: flex; align-items: center; gap: 0.7rem; width: 100%; margin: 0 0 1rem; padding: 0.75rem 0.9rem; text-align: left;
+    background: linear-gradient(100deg, var(--sun-a), var(--pink)); color: #2a1440; border: 2px solid var(--line);
+    border-radius: 14px; box-shadow: var(--shadow); font: inherit;
+  }
+  .current .live { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; background: white; color: #16a34a; border-radius: 99px; padding: 0.15rem 0.5rem; white-space: nowrap; }
+  .current .meta { color: #2a1440; opacity: 0.8; }
+  .go-back { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 800; white-space: nowrap; }
+  .here { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; background: #16a34a; color: white; border-radius: 99px; padding: 0.05rem 0.45rem; margin-left: 0.35rem; vertical-align: 0.15em; }
+  .code { font-family: var(--mono); font-weight: 700; letter-spacing: 0.1em; background: var(--panel-2); border: 0; border-radius: 6px; padding: 0 0.35rem; color: var(--ink); font-size: 0.8rem; }
+  .room.gone { opacity: 0.6; }
+  .warn { color: var(--pink); font-weight: 700; }
+  .forget { background: var(--panel); border: 2px solid var(--line); border-radius: 99px; padding: 0.35rem 0.85rem; font-weight: 700; white-space: nowrap; }
   .join { background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 99px; padding: 0.35rem 0.85rem; font-weight: 700; white-space: nowrap; }
   .empty { background: var(--panel); border: 2px dashed var(--line); border-radius: 12px; padding: 0.4rem 1rem; text-align: center; }
   .muted { color: var(--muted); }
