@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { hardReload, isStandalone } from "./lib/pwa.ts";
+  import { roundStart } from "../shared/timeline.ts";
   import GuessRow from "./GuessRow.svelte";
   import RoomBoard from "./RoomBoard.svelte";
   import RoomsPage from "./RoomsPage.svelte";
@@ -110,13 +111,21 @@
   /** "10h" (today), "hier 22h", "18/11 9h": the hour at which a round started. */
   function roundLabel(n: number): string {
     if (!meta) return "";
-    const t = Date.parse(meta.start) + (n - 1) * meta.period * 1000;
+    const t = roundTime(n);
     const hour = new Intl.DateTimeFormat("fr-FR", { hour: "numeric", hourCycle: "h23", timeZone: TZ }).formatToParts(t).find((p) => p.type === "hour")!.value;
     const day = (x: number) => new Intl.DateTimeFormat("fr-CA", { timeZone: TZ }).format(x);
     const today = day(Date.now()), yesterday = day(Date.now() - 86_400_000), that = day(t);
     const prefix = that === today ? "" : that === yesterday ? "hier " : `${that.slice(8, 10)}/${that.slice(5, 7)} `;
     return `${prefix}${Number(hour)}h`;
   }
+
+  /** Start time of a round, and its parts in the game's time zone. */
+  const roundTime = (n: number) => (meta ? roundStart({ start: meta.start, period: meta.period, timezone: TZ }, n) : Date.now());
+  const roundHour = (n: number) =>
+    `${Number(new Intl.DateTimeFormat("fr-FR", { hour: "numeric", hourCycle: "h23", timeZone: TZ }).formatToParts(roundTime(n)).find((p) => p.type === "hour")!.value)}h`;
+  /** "20/11/26" — the day of that round (today by default, yesterday at most from the history list). */
+  const roundDate = (n: number) =>
+    new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: TZ }).format(roundTime(n));
 
   async function loadHistory() {
     pastWords = await fetchHistory(LANG, playLevel);
@@ -520,7 +529,12 @@
     <svg class="palm" viewBox="0 0 64 96" aria-hidden="true"><path d="M33 94c-2-22 0-44 4-60" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M37 34c-10-12-24-12-34-4 12-2 22 0 34 4zM37 34c4-14 16-22 26-20-12 4-20 10-26 20zM37 34c-14 0-24 8-28 18 8-8 18-12 28-18zM37 34c12-4 22 2 26 10-8-6-16-8-26-10zM37 34c-2-12-10-22-20-26 10 8 16 16 20 26z" fill="currentColor"/></svg>
     <div class="brand">
       <h1><a href="/" class="home" onclick={(e) => { e.preventDefault(); goPage("game"); }} title="Accueil">Sémantique</a></h1>
-      {#if meta}<span class="day">mot de {roundLabel(round)} <span class="sep">·</span> <span class="timer" title="Prochain mot dans">⏱ {countdown}</span></span>{/if}
+      {#if meta}
+        <span class="day">
+          <span class="date">{roundDate(round)} - {roundHour(round)}</span>
+          {#if round === meta.current}<span class="sep">·</span> <span class="timer" title="Prochain mot dans">⏱ {countdown}</span>{/if}
+        </span>
+      {/if}
     </div>
     <div class="header-actions">
       {#if !isStandalone()}<a class="icon install" href="/installer/" aria-label="Installer l'app" title="Installer l'app">📲</a>{/if}
@@ -694,7 +708,7 @@
       <div class="note">
         <span class="tape" aria-hidden="true"></span>
         <p><strong>Trouve le mot de l'heure.</strong> Chaque essai te dit à quel point tu en es proche <em>par le sens</em>.</p>
-        <p class="same-word">🌍 Un nouveau mot chaque heure, <strong>le même pour tout le monde</strong>, en solo comme dans toutes les rooms.</p>
+        <p class="same-word">🌍 Un nouveau mot chaque heure (toutes les 3 h la nuit), <strong>le même pour tout le monde</strong>, en solo comme dans toutes les rooms.</p>
         <p class="scale">🧊 🌊 🌴 ☀️ 🥵 🔥 🎯</p>
         <p class="muted">Commence large (un animal, une émotion, un objet…), puis resserre autour des pistes chaudes.</p>
       </div>
@@ -767,7 +781,7 @@
 <dialog bind:this={helpDialog} onclick={(e) => e.target === helpDialog && helpDialog.close()}>
   <span class="tape" aria-hidden="true"></span>
   <h2>comment jouer</h2>
-  <p><strong>Un nouveau mot secret toutes les heures, le même pour tout le monde</strong>, en solo comme dans toutes les rooms : tu peux comparer ta partie avec n'importe qui. Chaque mot proposé reçoit une <strong>température</strong> : plus il est proche du secret par le sens, plus il est chaud. 100° = trouvé. Le petit <strong>n°</strong> à côté, c'est son rang (n°1 = le plus proche).</p>
+  <p><strong>Un nouveau mot secret toutes les heures de 9h à minuit, puis à 0h, 3h et 6h la nuit — le même pour tout le monde</strong>, en solo comme dans toutes les rooms : tu peux comparer ta partie avec n'importe qui. Chaque mot proposé reçoit une <strong>température</strong> : plus il est proche du secret par le sens, plus il est chaud. 100° = trouvé. Le petit <strong>n°</strong> à côté, c'est son rang (n°1 = le plus proche).</p>
   <ul class="legend">
     {#each LEVELS as l, i}
       <li><span class="emoji">{l.emoji}</span> <strong>{l.label}</strong> <span class="muted mono small">{i === 0 ? "100°" : l.maxRank === Infinity ? `< ${temperature(LEVELS[i - 1].maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°` : `≥ ${temperature(l.maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°`}</span></li>

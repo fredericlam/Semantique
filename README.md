@@ -2,7 +2,7 @@
 
 🌐 **En ligne : https://semantique.flaaam.workers.dev**
 
-Trouve le mot secret grâce à la **température** : plus ton mot est proche du secret *par le sens*, plus il est chaud (100° = trouvé). Un **nouveau mot toutes les heures**. On peut jouer seul ou entre amis dans une **room**.
+Trouve le mot secret grâce à la **température** : plus ton mot est proche du secret *par le sens*, plus il est chaud (100° = trouvé). Un **nouveau mot toutes les heures** de 9h à minuit, puis toutes les 3 heures la nuit (0h, 3h, 6h). On peut jouer seul ou entre amis dans une **room**.
 
 Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantle](https://semantle.com/), avec une ergonomie revue.
 
@@ -38,6 +38,7 @@ Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantl
   Les mots acceptés sont les mêmes pour tous. En solo, le niveau se choisit sous l'en-tête et l'app s'en souvient ; une room a un niveau fixé à sa création. Les parties et les statistiques sont séparées par niveau.
 - **Indices progressifs** : d'abord un mot du top 1000 (top 300 en kid), puis à chaque fois un mot environ 4 fois (3 fois en kid) plus proche que ton meilleur essai. Au rang 1, plus d'indice.
 - **Les heures précédentes** : sous la partie, les mots des 48 dernières heures du niveau en cours, avec ton résultat (🎯 trouvé en N, 🏳️ abandon, pas joué). Le mot d'une heure non jouée est flouté (un toucher le révèle) et on peut encore la jouer. Le serveur (`GET /api/fr/history`) ne renvoie que des heures terminées.
+- **Rythme jour / nuit** (depuis le 21/11/2026) : 0h, 3h, 6h, puis chaque heure de 9h à 23h, soit 18 mots par jour. Défini dans `shared/timeline.ts` (`SLOTS`), commun au serveur et à l'app, changement d'heure géré. Les données ne bougent pas : les tables sont indexées par numéro de manche.
 - **Décompte** : « 🎯 N personnes ont trouvé le mot de 14h · M mots trouvés aujourd'hui », et le nombre de personnes pour chaque heure passée. Le compteur est tenu par le Durable Object `Stats` : une seule fois par appareil (identifiant anonyme) et par heure, et seulement avec le bon mot (`POST /api/fr/found`, `GET /api/fr/stats`).
 - **Thème** : 🌓 auto (suit l'appareil), ☀️ clair ou 🌙 sombre, au choix en pied de page.
 - **Pistes** : tes essais sont regroupés automatiquement par thème.

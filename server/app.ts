@@ -54,7 +54,7 @@ export function createApp() {
     const { meta: m } = c.get("L");
     const current = c.get("current");
     return c.json({
-      lang: m.lang, current, period: m.period, start: m.start,
+      lang: m.lang, current, period: m.period, start: m.start, timezone: m.timezone,
       currentStart: new Date(roundStart(m, current)).toISOString(),
       nextAt: new Date(roundStart(m, current + 1)).toISOString(),
       vocabSize: m.vocabSize, vecDims: m.vecDims, credits: m.credits, version: m.version,

@@ -1,4 +1,5 @@
 /** Game data access, shared by the API Worker and the Room Durable Object. */
+import { roundAt as timelineRoundAt, roundStart as timelineRoundStart } from "../shared/timeline.ts";
 
 export interface Store {
   /** Whole object, or a byte range of it. Keys look like "fr/public/meta.json". */
@@ -39,9 +40,9 @@ export interface Entry {
   rank: number;
 }
 
-export const roundAt = (m: Meta, now = Date.now()) =>
-  Math.min(Math.floor((now - Date.parse(m.start)) / (m.period * 1000)) + 1, m.rounds);
-export const roundStart = (m: Meta, n: number) => Date.parse(m.start) + (n - 1) * m.period * 1000;
+/** Day/night rhythm shared with the app (shared/timeline.ts): hourly by day, every 3 h at night. */
+export const roundAt = (m: Meta, now = Date.now()) => Math.min(timelineRoundAt(m, now), m.rounds);
+export const roundStart = (m: Meta, n: number) => timelineRoundStart(m, n);
 
 /**
  * Next hint target: first a word in the top 1000 (top 300 for kids), then ~4x (kids: ~3x) closer than
