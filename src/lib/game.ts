@@ -62,9 +62,45 @@ export const fetchHint = (lang: string, level: string, round: number, rank: numb
 export const fetchTop = (lang: string, level: string, round: number, found?: string) =>
   api<Omit<Guess, "input" | "n">[]>(`/api/${lang}/top?level=${level}&round=${round}&n=100${found ? `&found=${encodeURIComponent(found)}` : ""}`).catch(() => []);
 
-/** Secret words of the last finished rounds (never the current one). */
+/** Secret words of the last finished rounds (never the current one), with how many players found them. */
 export const fetchHistory = (lang: string, level: string) =>
-  api<{ round: number; word: string }[]>(`/api/${lang}/history?level=${level}`).catch(() => []);
+  api<{ round: number; word: string; found: number }[]>(`/api/${lang}/history?level=${level}`).catch(() => []);
+
+// ------------------------------------------------------------------ "trouvé par N personnes"
+
+export interface FoundStats {
+  round: number;
+  hour: number; // players who found this round's word
+  todayFinds: number; // words found today, all hours
+  todayPlayers: number; // distinct players who found at least one word today
+}
+
+/** Anonymous id of this browser, only used to count each player once per word. */
+export function deviceId(): string {
+  try {
+    let id = localStorage.getItem("semantique:device");
+    if (!id) localStorage.setItem("semantique:device", (id = crypto.randomUUID()));
+    return id;
+  } catch {
+    return "anonymous-device";
+  }
+}
+
+export const fetchStats = (lang: string, level: string, round: number) =>
+  api<FoundStats>(`/api/${lang}/stats?level=${level}&round=${round}`).catch(() => null);
+
+export async function reportFound(lang: string, level: string, round: number, word: string): Promise<FoundStats | null> {
+  try {
+    const r = await fetch(`/api/${lang}/found?level=${level}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ round, word, device: deviceId() }),
+    });
+    return r.ok ? r.json() : null;
+  } catch {
+    return null;
+  }
+}
 
 // ------------------------------------------------------------------ persistence (per browser)
 

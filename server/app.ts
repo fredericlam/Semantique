@@ -103,14 +103,50 @@ export function createApp() {
     return c.json(data.top(L, r, Math.min(500, Number(c.req.query("n")) || 100)));
   });
 
-  /** Words of the last finished rounds (up to 48 h), newest first. The current word is never included. */
+  /** Words of the last finished rounds (up to 48 h), newest first, with how many found them. Never the current word. */
   app.get("/:lang/history", async (c) => {
-    const L = c.get("L"), current = c.get("current");
-    const words = await gameData(c.env.DATA).schedule(L, c.get("level"));
+    const L = c.get("L"), current = c.get("current"), level = c.get("level");
+    const words = await gameData(c.env.DATA).schedule(L, level);
     if (!words) return c.json({ error: "no data" }, 500);
-    const out = [];
-    for (let n = current - 1; n >= Math.max(1, current - 48); n--) out.push({ round: n, word: words[n - 1] });
-    return c.json(out, 200, { "cache-control": "public, max-age=60" });
+    const rounds: number[] = [];
+    for (let n = current - 1; n >= Math.max(1, current - 48); n--) rounds.push(n);
+    const found = await stats(c.env).counts(level, rounds);
+    return c.json(rounds.map((n) => ({ round: n, word: words[n - 1], found: found[n] ?? 0 })), 200, { "cache-control": "public, max-age=60" });
+  });
+
+  // ---------------------------------------------------------------- "trouvé par N personnes"
+
+  const stats = (env: Env) => env.STATS.get(env.STATS.idFromName("global"));
+  /** First round whose start falls on today's date (in the game's time zone). */
+  const firstRoundToday = (L: Lang, current: number) => {
+    const day = (t: number) => new Intl.DateTimeFormat("en-CA", { timeZone: L.meta.timezone }).format(t);
+    const today = day(Date.now());
+    let n = current;
+    while (n > 1 && day(roundStart(L.meta, n - 1)) === today) n--;
+    return n;
+  };
+  const counters = async (env: Env, L: Lang, level: string, round: number, current: number) => {
+    const s = stats(env);
+    const [hour, today] = await Promise.all([s.counts(level, [round]), s.range(level, firstRoundToday(L, current), current)]);
+    return { round, hour: hour[round] ?? 0, todayFinds: today.finds, todayPlayers: today.players };
+  };
+
+  app.get("/:lang/stats", async (c) => {
+    const L = c.get("L");
+    return c.json(await counters(c.env, L, c.get("level"), c.get("n"), c.get("current")), 200, { "cache-control": "no-store" });
+  });
+
+  /** "I found it": counted once per device and round, only with the right word. */
+  app.post("/:lang/found", async (c) => {
+    const L = c.get("L"), level = c.get("level"), current = c.get("current");
+    const { round, word, device } = await c.req.json<{ round: number; word: string; device: string }>().catch(() => ({} as never));
+    if (!Number.isInteger(round) || round < 1 || round > current || !/^[\w-]{8,64}$/.test(String(device ?? "")))
+      return c.json({ error: "bad request" }, 400);
+    const id = L.index.get(String(word ?? ""));
+    const r = await gameData(c.env.DATA).round(L, round, level);
+    if (!r || id === undefined || r.rank[id] !== 0) return c.json({ error: "wrong word" }, 403);
+    await stats(c.env).record(level, round, device);
+    return c.json(await counters(c.env, L, level, round, current));
   });
 
   // ---------------------------------------------------------------- rooms

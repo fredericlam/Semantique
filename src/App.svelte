@@ -15,7 +15,7 @@
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, level, temperature } from "./lib/heat.ts";
   import {
-    buildTracks, computeStats, fetchGuess, fetchHistory, SHOW_LEVELS, fetchHint, fetchMeta, fetchTop, loadState, nextHintRank, saveState, LEVEL_INFO, levelLabel,
+    buildTracks, computeStats, fetchGuess, fetchHistory, fetchStats, reportFound, type FoundStats, SHOW_LEVELS, fetchHint, fetchMeta, fetchTop, loadState, nextHintRank, saveState, LEVEL_INFO, levelLabel,
     type GameState, type Guess, type Meta,
   } from "./lib/game.ts";
 
@@ -71,7 +71,12 @@
   let joinError = $state("");
   let joinBusy = $state(false);
   let disconnect: (() => void) | null = null;
-  let pastWords = $state<{ round: number; word: string }[]>([]);
+  let pastWords = $state<{ round: number; word: string; found: number }[]>([]);
+  let foundStats = $state<FoundStats | null>(null);
+
+  async function loadStats() {
+    if (meta && round) foundStats = await fetchStats(LANG, playLevel, round);
+  }
   let bugDialog = $state<{ open: () => void }>();
 
   /** Technical context for bug reports — never the room code nor the guessed words. */
@@ -135,6 +140,7 @@
     if (lex) for (const g of game.guesses) g.id = lex.index.get(g.word) ?? g.id; // ids depend on the vocab build
     await loadTop();
     loadHistory();
+    loadStats();
   }
 
   async function goToLatest() {
@@ -145,7 +151,10 @@
   }
 
   onMount(() => {
-    const timer = setInterval(() => (now = Date.now()), 1000);
+    const timer = setInterval(() => {
+      now = Date.now();
+      if (Math.floor(now / 1000) % 60 === 0) loadStats();
+    }, 1000);
     (async () => {
       try {
         meta = await fetchMeta(LANG);
@@ -245,13 +254,6 @@
     document.head.appendChild(m);
   }
 
-  /** "Vecteurs : Jean-Philippe Fauconnier, frWac (CC-BY) — https://…" → label, linked text, licence. */
-  function parseCredit(c: string) {
-    const m = c.match(/^(.*?)\s*:\s*(.*?)\s*—\s*(https?:\/\/\S+)$/);
-    if (!m) return { label: "", text: c, licence: "", url: "" };
-    const lic = m[2].match(/\s*\(([^)]+)\)\s*$/);
-    return { label: m[1], text: lic ? m[2].slice(0, lic.index) : m[2], licence: lic?.[1] ?? "", url: m[3] };
-  }
 
   async function setLevel(l: string) {
     if (l === soloLevel) return;
@@ -386,7 +388,10 @@
     if ("n" in g && typeof g.n === "number") guess.n = g.n;
     game.guesses.push(guess);
     last = guess;
-    if (guess.rank === 0) finish("won");
+    if (guess.rank === 0) {
+      finish("won");
+      reportFound(LANG, playLevel, round, guess.word).then((s) => s && (foundStats = s));
+    }
     persist();
   }
 
@@ -570,6 +575,17 @@
       </button>
     {/if}
 
+    {#if foundStats}
+      <p class="found-line">
+        {#if foundStats.hour}
+          🎯 <strong>{foundStats.hour}</strong> {foundStats.hour > 1 ? "personnes ont" : "personne a"} trouvé le mot de {roundLabel(round)}
+        {:else}
+          🎯 personne n'a encore trouvé le mot de {roundLabel(round)}
+        {/if}
+        <span class="sep">·</span> <strong>{foundStats.todayFinds}</strong> mot{foundStats.todayFinds > 1 ? "s" : ""} trouvé{foundStats.todayFinds > 1 ? "s" : ""} aujourd'hui
+      </p>
+    {/if}
+
     <section class="console">
       {#if !over}
         <form onsubmit={(e) => { e.preventDefault(); submit(); }}>
@@ -729,22 +745,19 @@
         <span class="install-arrow"><Icon name="arrow-right" /></span>
       </button>
       <div class="foot">
+      <div class="foot-controls">
       <div class="theme-switch" role="radiogroup" aria-label="Thème">
         {#each [["auto", "circle-half", "Thème automatique (suit l'appareil)"], ["light", "sun", "Thème clair"], ["dark", "moon", "Thème sombre"]] as const as [t, icon, label] (t)}
           <button role="radio" aria-checked={theme === t} aria-label={label} title={label} class:on={theme === t} onclick={() => setTheme(t)}><Icon name={icon} size="1.05rem" /></button>
         {/each}
       </div>
-      <button class="reload" onclick={hardReload} title="Recharger l'app (et récupérer la dernière version)" aria-label="Recharger"><Icon name="reload" size="1rem" /></button>
+      <button class="reload" onclick={hardReload} title="Recharger l'app (et récupérer la dernière version)" aria-label="Recharger"><Icon name="reload" size="1rem" /> recharger</button>
+      </div>
       <ul class="credits">
-        {#each meta.credits.map(parseCredit) as c (c.text)}
-          <li>
-            {#if c.label}<span class="muted">{c.label}</span>{/if}
-            {#if c.url}<a href={c.url} target="_blank" rel="noopener">{c.text}</a>{:else}{c.text}{/if}
-            {#if c.licence}<span class="lic">{c.licence}</span>{/if}
-          </li>
-        {/each}
+        <li><span class="muted">Vecteurs</span> <a href="https://fauconnier.github.io/#data" target="_blank" rel="noopener">frWac, J.-P. Fauconnier</a> <span class="lic">CC-BY</span></li>
+        <li><span class="muted">Mots</span> <a href="http://www.lexique.org" target="_blank" rel="noopener">Lexique 3.83, New &amp; Pallier</a> <span class="lic">CC BY-SA</span></li>
         <li><span class="muted">Inspiré de</span> <a href="https://cemantix.certitudes.org/" target="_blank" rel="noopener">Cémantix</a> et <a href="https://semantle.com/" target="_blank" rel="noopener">Semantle</a></li>
-        <li><a href="https://github.com/fredericlam/Semantique" target="_blank" rel="noopener">Code source</a> <span class="muted">par</span> <a href="https://github.com/fredericlam" target="_blank" rel="noopener">fredericlam</a> · <a href="/installer/">Installer l'app</a></li>
+        <li><a href="https://github.com/fredericlam/Semantique" target="_blank" rel="noopener">Code</a> <span class="muted">par</span> <a href="https://github.com/fredericlam" target="_blank" rel="noopener">fredericlam</a> · <a href="/installer/">Installer l'app</a></li>
       </ul>
       </div>
     </footer>
@@ -1009,6 +1022,9 @@
   .levels button { flex: 1; border: 0; background: none; border-radius: 99px; padding: 0.4rem 0.3rem; font-weight: 700; font-size: 0.88rem; color: var(--muted); white-space: nowrap; }
   .levels button.on { background: var(--pink); color: white; box-shadow: var(--shadow-sm); }
   .levels.in-dialog { margin: 0; }
+  .found-line { margin: 0 0 6px; font-size: 0.78rem; color: var(--muted); }
+  .found-line strong { color: var(--pink); font-family: var(--mono); }
+  .found-line .sep { margin: 0 0.25rem; }
   .same-word { font-size: 0.88rem; background: var(--panel-2); border-radius: 10px; padding: 0.45rem 0.65rem; }
   .room-back { background: none; border: 0; padding: 0.2rem 0; margin: 0 0 4px; font-weight: 700; color: var(--muted); display: inline-flex; align-items: center; gap: 0.3rem; }
   .room-cta {
@@ -1029,25 +1045,25 @@
   .code-input { font-family: var(--mono); letter-spacing: 0.3em; text-transform: uppercase; }
   .room-dialog .go { width: 100%; padding: 0.8rem; }
   /* theme icons in their own column; credits flow on the right and wrap only there */
-  .foot { display: flex; align-items: center; gap: 0.8rem; text-align: left; }
+  /* left: controls stacked; right: credits, wrapping inside their own column only */
+  .foot { display: flex; align-items: flex-start; gap: 0.9rem; text-align: left; }
+  .foot-controls { display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; flex: none; }
   .theme-switch { display: flex; flex: none; gap: 2px; padding: 2px; width: fit-content; background: var(--panel-2); border-radius: 99px; }
   .theme-switch button { display: grid; place-items: center; border: 0; background: none; border-radius: 99px; width: 1.75rem; height: 1.75rem; padding: 0; color: var(--muted); }
   .theme-switch button.on { background: var(--panel); color: var(--pink); box-shadow: var(--shadow-sm); }
   .reload {
-    display: grid; place-items: center; flex: none; width: 1.95rem; height: 1.95rem; padding: 0; border: 0; border-radius: 99px;
-    background: var(--panel-2); color: var(--muted); cursor: pointer;
+    display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem 0.2rem 0.45rem; border: 0; border-radius: 99px;
+    background: var(--panel-2); color: var(--muted); cursor: pointer; font-size: 0.7rem; font-weight: 600;
   }
   .reload:hover { color: var(--pink); }
   .reload:active { rotate: 90deg; }
   .credits {
     list-style: none; padding: 0; margin: 0; flex: 1; min-width: 0;
-    display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 0.15rem 0.9rem;
-    min-height: 1.95rem; font-size: 0.68rem; line-height: 1.4;
+    display: grid; gap: 0.2rem; font-size: 0.68rem; line-height: 1.35; overflow-wrap: anywhere;
   }
-  .credits li { white-space: nowrap; }
   .credits a { color: var(--ink); font-weight: 600; text-decoration-color: var(--pink); text-underline-offset: 2px; }
   .credits a:hover { color: var(--pink); }
-  .credits .lic { font-family: var(--mono); font-size: 0.58rem; border: 1px solid currentColor; border-radius: 4px; padding: 0 0.25rem; margin-left: 0.25rem; color: var(--muted); }
+  .credits .lic { white-space: nowrap; font-family: var(--mono); font-size: 0.58rem; border: 1px solid currentColor; border-radius: 4px; padding: 0 0.25rem; margin-left: 0.25rem; color: var(--muted); }
   .bug-card {
     display: flex; align-items: center; gap: 0.75rem; width: 100%; margin: 0 0 1.2rem; padding: 0.6rem 0.85rem; text-align: left;
     background: var(--panel); border: 2px dashed var(--line); border-radius: 16px; color: var(--ink); rotate: 0.5deg; font-size: 0.95rem;
