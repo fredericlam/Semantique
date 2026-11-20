@@ -1,0 +1,23 @@
+{
+  "name": "Sémantique — un mot toutes les heures",
+  "short_name": "Sémantique",
+  "description": "Trouve le mot secret grâce à la température : plus tu es proche par le sens, plus c'est chaud. Un nouveau mot toutes les heures.",
+  "lang": "fr",
+  "id": "/",
+  "start_url": "/?source=app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#2a1440",
+  "theme_color": "#2a1440",
+  "categories": ["games", "education"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Installer sur un autre appareil", "url": "/installer/", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#2a1440" />
+    <meta name="description" content="Installe Sémantique sur ton téléphone, comme une vraie app." />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&family=Yellowtail&display=swap" rel="stylesheet" />
+    <title>Installer Sémantique</title>
+  </head>
+  <body>
+    <main class="install">
+      <img class="app-icon" src="/icons/icon-512.png" alt="" width="132" height="132" />
+      <h1>Sémantique</h1>
+      <p class="tagline">un mot secret toutes les heures,<br />directement sur ton écran d'accueil 🌴</p>
+
+      <section id="installed" class="card" hidden>
+        <span class="tape"></span>
+        <p class="big">✓ C'est installé !</p>
+        <p>Tu joues déjà depuis l'app.</p>
+      </section>
+
+      <div id="picker" class="seg" role="tablist" aria-label="Ton appareil">
+        <button role="tab" data-p="ios">iPhone / iPad</button>
+        <button role="tab" data-p="android">Android</button>
+        <button role="tab" data-p="desktop">Ordinateur</button>
+      </div>
+
+      <section class="card" data-panel="ios" hidden>
+        <span class="tape"></span>
+        <p class="note-browser" id="ios-other" hidden>Tu n'es pas dans Safari : ça marche aussi dans Chrome sur iOS récent. Sinon, ouvre cette page dans <strong>Safari</strong>.</p>
+        <ol class="steps">
+          <li>
+            <span class="num">1</span>
+            <span>Touche <strong>Partager</strong>
+              <svg class="glyph" viewBox="0 0 24 24" aria-label="icône Partager"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10H6a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              dans la barre du navigateur</span>
+          </li>
+          <li>
+            <span class="num">2</span>
+            <span>Fais défiler et choisis <strong>Sur l'écran d'accueil</strong>
+              <svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </span>
+          </li>
+          <li><span class="num">3</span><span>Touche <strong>Ajouter</strong>. L'icône 🌴 apparaît avec tes apps.</span></li>
+        </ol>
+      </section>
+
+      <section class="card" data-panel="android" hidden>
+        <span class="tape"></span>
+        <button id="install-btn" class="go wide" hidden>📲 installer l'app</button>
+        <ol class="steps" id="android-steps">
+          <li><span class="num">1</span><span>Ouvre le menu <strong>⋮</strong> du navigateur (en haut à droite)</span></li>
+          <li><span class="num">2</span><span>Choisis <strong>Installer l'application</strong> ou <strong>Ajouter à l'écran d'accueil</strong></span></li>
+          <li><span class="num">3</span><span>Confirme. L'icône 🌴 apparaît avec tes apps.</span></li>
+        </ol>
+      </section>
+
+      <section class="card" data-panel="desktop" hidden>
+        <span class="tape"></span>
+        <p class="big">Scanne avec ton téléphone 📱</p>
+        <div id="qr" class="qr" aria-label="QR code vers cette page"></div>
+        <p class="muted small" id="url"></p>
+        <button id="install-btn-desktop" class="go wide" hidden>💻 installer sur cet ordinateur</button>
+      </section>
+
+      <ul class="perks">
+        <li>⚡ s'ouvre en plein écran, sans barre d'adresse</li>
+        <li>⏱ un nouveau mot à chaque heure pile</li>
+        <li>🔒 pas de compte, pas de pub, rien à télécharger depuis un store</li>
+      </ul>
+
+      <a class="go wide play" href="/">jouer maintenant →</a>
+    </main>
+    <script type="module" src="/src/installer.ts"></script>
+  </body>
+</html>

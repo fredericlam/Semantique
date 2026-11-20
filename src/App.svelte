@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
+  import { isStandalone } from "./lib/pwa.ts";
   import GuessRow from "./GuessRow.svelte";
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, level, temperature } from "./lib/heat.ts";
@@ -201,6 +202,7 @@
     </div>
     <div class="header-actions">
       {#if meta}<span class="timer" title="Prochain mot dans">⏱ {countdown}</span>{/if}
+      {#if !isStandalone()}<a class="icon" href="/installer/" aria-label="Installer l'app" title="Installer l'app">📲</a>{/if}
       <button class="icon" onclick={() => statsDialog.showModal()} aria-label="Statistiques">📊</button>
       <button class="icon" onclick={() => helpDialog.showModal()} aria-label="Comment jouer">?</button>
     </div>
@@ -349,6 +351,7 @@
   </ul>
   <p>Zéro piège d'orthographe : <em>chevaux</em> = <em>cheval</em>, <em>mangeait</em> = <em>manger</em>, accents facultatifs.</p>
   <p><strong>Pistes</strong> regroupe tes essais par thème. Coincé ? <strong>💡 indice</strong> te donne un mot plus proche que ton meilleur.</p>
+  <p>📲 <a href="/installer/">Installe-la sur ton téléphone</a>, comme une vraie app.</p>
   <form method="dialog"><button class="go wide">c'est parti 🌴</button></form>
 </dialog>
 
@@ -408,6 +411,8 @@
     font-weight: 800; font-size: 1.05rem; box-shadow: var(--shadow-sm);
   }
   .icon:active { translate: 2px 2px; box-shadow: none; }
+  a.icon { display: grid; place-items: center; text-decoration: none; }
+  .page { padding-top: env(safe-area-inset-top); }
 
   /* ---------- sticky console ---------- */
   .console {
