@@ -4,5 +4,14 @@ export function registerSW(): void {
   addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 }
 
+/** Reload the page, after asking the service worker to fetch a newer version of the app if any. */
+export async function hardReload(): Promise<void> {
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    await reg?.update();
+  } catch {}
+  location.reload();
+}
+
 export const isStandalone = (): boolean =>
   matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true;

@@ -67,6 +67,22 @@
     </div>
   </header>
 
+  <div class="me-line">
+    {#if editing}
+      <form class="rename" onsubmit={saveName}>
+        <span class="me-label">ton nom</span>
+        <!-- svelte-ignore a11y_autofocus -->
+        <input bind:value={draft} maxlength="20" autofocus aria-label="Ton nom dans la room" onkeydown={(e) => e.key === "Escape" && (editing = false)} />
+        <button type="submit" class="ok" disabled={saving}>ok</button>
+        <button type="button" class="cancel" onclick={() => (editing = false)} aria-label="Annuler">✕</button>
+      </form>
+    {:else}
+      <button class="me-btn" onclick={startEdit} title="Changer mon nom dans cette room">
+        <span class="me-label">toi</span> <strong>{me}</strong> <span class="pen">✏️ renommer</span>
+      </button>
+    {/if}
+  </div>
+
   <div class="seg" role="tablist">
     <button role="tab" aria-selected={tab === "live"} onclick={() => (tab = "live")}>cette heure · {found}/{snap.players.length} 🎯</button>
     <button role="tab" aria-selected={tab === "points"} onclick={() => (tab = "points")}>classement</button>
@@ -79,16 +95,7 @@
         {@const n = p.now}
         <li class:me={p.name === me}>
           <span class="online" class:on={p.online} title={p.online ? "en ligne" : "hors ligne"}></span>
-          {#if p.name === me && editing}
-            <form class="rename" onsubmit={saveName}>
-              <!-- svelte-ignore a11y_autofocus -->
-              <input bind:value={draft} maxlength="20" autofocus aria-label="Ton nom dans la room" onkeydown={(e) => e.key === "Escape" && (editing = false)} />
-              <button type="submit" class="ok" disabled={saving}>ok</button>
-              <button type="button" class="cancel" onclick={() => (editing = false)} aria-label="Annuler">✕</button>
-            </form>
-          {:else}
-            <span class="name">{p.name}{#if p.name === me}<span class="you">toi</span><button class="edit" onclick={startEdit} title="Changer mon nom" aria-label="Changer mon nom">✏️</button>{/if}</span>
-          {/if}
+          <span class="name">{p.name}{#if p.name === me}<span class="you">toi</span>{/if}</span>
           {#if !n || (n.tries === 0 && n.hints === 0 && n.status === "playing")}
             <span class="stat muted">pas encore joué</span>
           {:else if n.status === "won"}
@@ -155,9 +162,12 @@
   .win { color: var(--pink); font-weight: 700; }
   .muted { color: var(--muted); }
   .pos { width: 1.6rem; text-align: center; font-family: var(--mono); font-weight: 700; }
-  .edit { background: none; border: 0; padding: 0 0.2rem; margin-left: 0.15rem; font-size: 0.8rem; opacity: 0.7; cursor: pointer; }
-  .edit:hover { opacity: 1; }
-  .rename { flex: 1; display: flex; gap: 0.3rem; min-width: 0; }
+  .me-line { margin: 0 0 0.55rem; }
+  .me-btn { display: inline-flex; align-items: center; gap: 0.35rem; background: var(--panel-2); border: 0; border-radius: 99px; padding: 0.25rem 0.7rem; font-size: 0.85rem; color: var(--ink); cursor: pointer; }
+  .me-btn:hover .pen { color: var(--pink); }
+  .me-label { font-family: var(--mono); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+  .pen { font-size: 0.75rem; font-weight: 700; color: var(--muted); }
+  .rename { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
   .rename input { flex: 1; min-width: 0; font: inherit; font-weight: 700; font-size: 0.9rem; padding: 0.15rem 0.45rem; border: 2px solid var(--pink); border-radius: 8px; background: var(--panel); color: var(--ink); }
   .rename .ok { background: var(--pink); color: white; border: 0; border-radius: 8px; padding: 0 0.55rem; font-weight: 700; font-size: 0.8rem; }
   .rename .cancel { background: none; border: 0; color: var(--muted); font-weight: 700; }

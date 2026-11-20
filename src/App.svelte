@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { isStandalone } from "./lib/pwa.ts";
+  import { hardReload, isStandalone } from "./lib/pwa.ts";
   import GuessRow from "./GuessRow.svelte";
   import RoomBoard from "./RoomBoard.svelte";
   import RoomsPage from "./RoomsPage.svelte";
@@ -733,6 +733,7 @@
           <button role="radio" aria-checked={theme === t} aria-label={label} title={label} class:on={theme === t} onclick={() => setTheme(t)}><Icon name={icon} size="1.05rem" /></button>
         {/each}
       </div>
+      <button class="reload" onclick={hardReload} title="Recharger l'app (et récupérer la dernière version)" aria-label="Recharger"><Icon name="reload" size="1rem" /></button>
       <ul class="credits">
         {#each meta.credits.map(parseCredit) as c (c.text)}
           <li>
@@ -1030,6 +1031,12 @@
   .theme-switch { display: flex; flex: none; gap: 2px; padding: 2px; width: fit-content; background: var(--panel-2); border-radius: 99px; }
   .theme-switch button { display: grid; place-items: center; border: 0; background: none; border-radius: 99px; width: 1.75rem; height: 1.75rem; padding: 0; color: var(--muted); }
   .theme-switch button.on { background: var(--panel); color: var(--pink); box-shadow: var(--shadow-sm); }
+  .reload {
+    display: grid; place-items: center; flex: none; width: 1.95rem; height: 1.95rem; padding: 0; border: 0; border-radius: 99px;
+    background: var(--panel-2); color: var(--muted); cursor: pointer;
+  }
+  .reload:hover { color: var(--pink); }
+  .reload:active { rotate: 90deg; }
   .credits {
     list-style: none; padding: 0; margin: 0; flex: 1; min-width: 0;
     display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 0.15rem 0.9rem;
