@@ -5,6 +5,7 @@
   import RoomBoard from "./RoomBoard.svelte";
   import RoomsPage from "./RoomsPage.svelte";
   import BugDialog from "./BugDialog.svelte";
+  import Icon from "./Icon.svelte";
   import {
     cleanCode, connect, createRoom, joinRoom, lastName, lastRoom, roomGiveUp, roomGuess, roomHint, roomMine, roomResume,
     roomReveal, roomSetVisibility, roomState, savedSession, saveSession, type RoomGuess, type Session, type Snapshot, type Visibility,
@@ -411,12 +412,12 @@
     <div class="sun" aria-hidden="true"></div>
     <svg class="palm" viewBox="0 0 64 96" aria-hidden="true"><path d="M33 94c-2-22 0-44 4-60" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M37 34c-10-12-24-12-34-4 12-2 22 0 34 4zM37 34c4-14 16-22 26-20-12 4-20 10-26 20zM37 34c-14 0-24 8-28 18 8-8 18-12 28-18zM37 34c12-4 22 2 26 10-8-6-16-8-26-10zM37 34c-2-12-10-22-20-26 10 8 16 16 20 26z" fill="currentColor"/></svg>
     <div class="brand">
-      <h1>Sémantique</h1>
+      <h1><a href="/" class="home" onclick={(e) => { e.preventDefault(); goPage("game"); }} title="Accueil">Sémantique</a></h1>
       {#if meta}<span class="day">mot de {roundLabel(round)} <span class="sep">·</span> <span class="timer" title="Prochain mot dans">⏱ {countdown}</span></span>{/if}
     </div>
     <div class="header-actions">
       {#if !isStandalone()}<a class="icon install" href="/installer/" aria-label="Installer l'app" title="Installer l'app">📲</a>{/if}
-      <button class="icon" class:active={!!session} onclick={() => (session && page === "game" ? document.querySelector(".board")?.scrollIntoView({ behavior: "smooth" }) : goPage("rooms"))} aria-label="Rooms" title="Les rooms">👥</button>
+      <button class="icon" class:active={!!session} onclick={() => (session && page === "game" ? document.querySelector(".board")?.scrollIntoView({ behavior: "smooth" }) : goPage("rooms"))} aria-label="Rooms" title="Les rooms"><Icon name="users" size="1.45rem" /></button>
       <button class="icon" onclick={() => statsDialog.showModal()} aria-label="Statistiques">📊</button>
       <button class="icon" onclick={() => helpDialog.showModal()} aria-label="Comment jouer">?</button>
     </div>
@@ -440,15 +441,15 @@
       <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} onleave={leaveRoom} ontogglevisibility={toggleVisibility} />
     {:else}
       <button class="room-cta" onclick={() => goPage("rooms")}>
-        <span class="cta-emoji" aria-hidden="true">👥</span>
+        <span class="cta-emoji"><Icon name="users" size="1.9rem" /></span>
         <span class="cta-text"><strong>Rejoins une room</strong><small>joue à plusieurs sur le mot de l'heure</small></span>
-        <span class="install-arrow" aria-hidden="true">→</span>
+        <span class="install-arrow"><Icon name="arrow-right" /></span>
       </button>
     {/if}
 
     {#if newWordReady || round !== meta.current}
       <button class="banner" onclick={goToLatest}>
-        🌴 {newWordReady ? "Nouveau mot dispo !" : "Le mot de l'heure t'attend"} <strong>jouer →</strong>
+        🌴 {newWordReady ? "Nouveau mot dispo !" : "Le mot de l'heure t'attend"} <strong>jouer <Icon name="arrow-right" /></strong>
       </button>
     {/if}
 
@@ -520,7 +521,7 @@
         <div class="toolbar">
           <span class="count"><strong>{tries}</strong> essai{tries > 1 ? "s" : ""}{#if hints} · {hints} 💡{/if}</span>
           {#if !over}
-            <button class="pill" onclick={hint} disabled={busy || noMoreHints} title={noMoreHints ? "Tu as déjà le mot le plus proche : à toi de trouver !" : "Révèle un mot plus proche que ton meilleur essai"}>💡 {noMoreHints ? "plus d'indice" : "indice"}</button>
+            <button class="pill" onclick={hint} disabled={busy || noMoreHints} title={noMoreHints ? "Tu as déjà le mot le plus proche : à toi de trouver !" : "Révèle un mot plus proche que ton meilleur essai"}><Icon name="lightbulb" /> {noMoreHints ? "plus d'indice" : "indice"}</button>
             <button class="pill" class:danger={confirmGiveUp} onclick={giveUp}>{confirmGiveUp ? "sûr ? re-clique" : "abandonner"}</button>
           {/if}
         </div>
@@ -595,9 +596,9 @@
 
     <footer>
       <button class="bug-card" onclick={() => bugDialog?.open()}>
-        <span class="bug-emoji" aria-hidden="true">💡</span>
+        <span class="bug-emoji"><Icon name="lightbulb" size="1.9rem" /></span>
         <span><strong>Un bug, une idée ?</strong><small>Dis-le nous en deux mots</small></span>
-        <span class="install-arrow" aria-hidden="true">→</span>
+        <span class="install-arrow"><Icon name="arrow-right" /></span>
       </button>
       {#each meta.credits as c}<p>{c}</p>{/each}
     </footer>
@@ -614,12 +615,12 @@
     {/each}
   </ul>
   <p>Zéro piège d'orthographe : <em>chevaux</em> = <em>cheval</em>, <em>mangeait</em> = <em>manger</em>, accents facultatifs.</p>
-  <p><strong>Pistes</strong> regroupe tes essais par thème. Coincé ? <strong>💡 indice</strong> te donne un mot plus proche que ton meilleur.</p>
+  <p><strong>Pistes</strong> regroupe tes essais par thème. Coincé ? <strong><Icon name="lightbulb" /> indice</strong> te donne un mot plus proche que ton meilleur.</p>
   {#if !isStandalone()}
     <a class="install-card" href="/installer/">
       <img src="/icons/icon-192.png" alt="" width="46" height="46" />
       <span class="install-text"><strong>Installe Sémantique</strong><small>sur ton écran d'accueil</small></span>
-      <span class="install-arrow" aria-hidden="true">→</span>
+      <span class="install-arrow"><Icon name="arrow-right" /></span>
     </a>
   {/if}
   <form method="dialog"><button class="go wide">c'est parti 🌴</button></form>
@@ -854,7 +855,8 @@
     rotate: -0.5deg; transition: translate 0.1s;
   }
   .room-cta:active { translate: 2px 2px; box-shadow: none; }
-  .cta-emoji { font-size: 1.5rem; }
+  .cta-emoji, .bug-emoji { display: inline-flex; color: var(--pink); }
+  .home { color: inherit; text-decoration: none; }
   .cta-text { flex: 1; display: grid; line-height: 1.25; }
   .cta-text strong { font-size: 1rem; }
   .cta-text small { color: var(--muted); font-size: 0.8rem; }
@@ -870,7 +872,7 @@
   }
   .bug-card span:nth-child(2) { flex: 1; display: grid; line-height: 1.25; }
   .bug-card small { color: var(--muted); font-size: 0.8rem; }
-  .bug-emoji { font-size: 1.6rem; }
+
   .install-card {
     display: flex; align-items: center; gap: 0.8rem; margin: 1rem 0 0.2rem; padding: 0.6rem 0.8rem;
     background: var(--panel-2); border: 2px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-sm);
@@ -881,7 +883,7 @@
   .install-card img { border-radius: 11px; border: 2px solid var(--line); flex: none; }
   .install-text { flex: 1; display: grid; line-height: 1.25; }
   .install-text small { color: var(--muted); font-size: 0.82rem; }
-  .install-arrow { font-family: var(--mono); font-weight: 700; font-size: 1.2rem; color: var(--pink); }
+  .install-arrow { display: inline-flex; font-size: 1.2rem; color: var(--pink); }
   .switch { display: block; margin: 0.9rem auto 0; background: none; border: 0; font-weight: 700; color: var(--pink); }
   .vis { border: 0; padding: 0; margin: 0; display: grid; gap: 0.4rem; }
   .vis legend { font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3rem; }

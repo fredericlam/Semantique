@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { listRooms, type PublicRoom } from "./lib/room.ts";
+  import Icon from "./Icon.svelte";
 
   let { lang, current, onjoin, oncode, oncreate, onback }:
     { lang: string; current: number; onjoin: (code: string) => void; oncode: () => void; oncreate: () => void; onback: () => void } = $props();
@@ -33,7 +34,7 @@
 </script>
 
 <section class="rooms-page">
-  <button class="back" onclick={onback}>← retour au jeu</button>
+  <button class="back" onclick={onback}><Icon name="arrow-left" /> retour au jeu</button>
   <h2>les rooms</h2>
   <p class="lead">Même mot de l'heure pour tout le monde, progression en direct, classement entre vous.</p>
 
