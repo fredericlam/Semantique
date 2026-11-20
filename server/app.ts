@@ -15,6 +15,7 @@ const validCode = (c: string) => new RegExp(`^[${CODE_ALPHABET}]{5}$`).test(c);
 
 const ERROR_STATUS: Record<RoomError["error"], 400 | 401 | 403 | 404 | 409 | 500> = {
   not_found: 404, taken: 409, bad_name: 400, auth: 401, unknown_word: 404, finished: 409, no_hint: 409, locked: 403, no_data: 500,
+  forbidden: 403, not_given_up: 409,
 };
 const isError = (x: unknown): x is RoomError => typeof x === "object" && x !== null && "error" in x;
 
@@ -91,12 +92,19 @@ export function createApp() {
 
   // ---------------------------------------------------------------- rooms
 
+  /** Public rooms, most lively first. */
+  app.get("/:lang/rooms", async (c) => {
+    const dir = c.env.DIRECTORY.get(c.env.DIRECTORY.idFromName("directory"));
+    return c.json(await dir.list(c.get("L").meta.lang), 200, { "cache-control": "no-store" });
+  });
+
   app.post("/:lang/rooms", async (c) => {
-    const { name } = await c.req.json<{ name?: string }>().catch(() => ({} as { name?: string }));
+    const { name, visibility } = await c.req.json<{ name?: string; visibility?: string }>().catch(() => ({} as { name?: string; visibility?: string }));
     for (let i = 0; i < 6; i++) {
       const code = newCode();
       const stub = c.env.ROOMS.get(c.env.ROOMS.idFromName(code));
-      if (await stub.create(code, c.get("L").meta.lang, String(name ?? ""))) return c.json({ code }, 201);
+      if (await stub.create(code, c.get("L").meta.lang, String(name ?? ""), visibility === "public" ? "public" : "private"))
+        return c.json({ code }, 201);
     }
     return c.json({ error: "no free code" }, 500);
   });
@@ -134,6 +142,16 @@ export function createApp() {
   app.post("/:lang/rooms/:code/giveup", async (c) => {
     const { token } = await c.req.json<{ token: string }>();
     return reply(c, await room(c).giveUp(token));
+  });
+
+  app.post("/:lang/rooms/:code/resume", async (c) => {
+    const { token } = await c.req.json<{ token: string }>();
+    return reply(c, await room(c).resume(token));
+  });
+
+  app.post("/:lang/rooms/:code/visibility", async (c) => {
+    const { token, visibility } = await c.req.json<{ token: string; visibility: "public" | "private" }>();
+    return reply(c, await room(c).setVisibility(token, visibility));
   });
 
   app.get("/:lang/rooms/:code/mine", async (c) =>

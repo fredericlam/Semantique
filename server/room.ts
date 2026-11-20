@@ -10,7 +10,8 @@ import type { Env } from "./env.ts";
 const EXPIRY_MS = 30 * 24 * 3600 * 1000; // rooms vanish after 30 days without activity
 const POINTS = [5, 3, 2]; // 1st, 2nd, 3rd to find; then 1; +1 without hints
 
-export type RoomError = { error: "not_found" | "taken" | "bad_name" | "auth" | "unknown_word" | "finished" | "no_hint" | "locked" | "no_data" };
+export type RoomError = { error: "not_found" | "taken" | "bad_name" | "auth" | "unknown_word" | "finished" | "no_hint" | "locked" | "no_data" | "forbidden" | "not_given_up" };
+export type Visibility = "public" | "private";
 
 export interface PlayerRound {
   status: "playing" | "won" | "gaveup";
@@ -24,6 +25,8 @@ export interface PlayerRound {
 export interface Snapshot {
   code: string;
   name: string;
+  visibility: Visibility;
+  owner: string | null; // display name of the creator, who can change the visibility
   round: number;
   players: { name: string; online: boolean; now: PlayerRound | null; points: number; wins: number }[];
 }
@@ -110,7 +113,38 @@ export class Room extends DurableObject<Env> {
         wins: wins.get(p.key) ?? 0,
       }));
     const code = this.meta("code") ?? "";
-    return { code, name: this.meta("name") || `Room ${code}`, round, players };
+    if (!this.meta("owner")) {
+      // rooms created before owners existed: the earliest player owns it
+      const first = this.sql.exec<{ key: string }>("SELECT key FROM players ORDER BY joined LIMIT 1").toArray()[0];
+      if (first) this.setMeta("owner", first.key);
+    }
+    const ownerKey = this.meta("owner");
+    const owner = ownerKey ? (this.sql.exec<{ name: string }>("SELECT name FROM players WHERE key = ?", ownerKey).toArray()[0]?.name ?? null) : null;
+    return { code, name: this.meta("name") || `Room ${code}`, visibility: this.visibility(), owner, round, players };
+  }
+
+  private visibility(): Visibility {
+    return this.meta("visibility") === "public" ? "public" : "private";
+  }
+
+  private directory() {
+    return this.env.DIRECTORY.get(this.env.DIRECTORY.idFromName("directory"));
+  }
+
+  /** Keep the public directory in sync (public rooms only). */
+  private async publish(snap: Snapshot) {
+    const lang = this.meta("lang");
+    if (!lang) return;
+    try {
+      if (snap.visibility !== "public") return await this.directory().remove(snap.code);
+      await this.directory().upsert(lang, {
+        code: snap.code, name: snap.name, round: snap.round,
+        players: snap.players.length,
+        online: snap.players.filter((p) => p.online).length,
+        found: snap.players.filter((p) => p.now?.status === "won").length,
+        lastActive: Date.now(),
+      });
+    } catch {}
   }
 
   private async broadcast() {
@@ -120,6 +154,7 @@ export class Room extends DurableObject<Env> {
     for (const ws of this.ctx.getWebSockets()) {
       try { ws.send(msg); } catch {}
     }
+    await this.publish(snap);
   }
 
   private event(text: string) {
@@ -131,10 +166,11 @@ export class Room extends DurableObject<Env> {
 
   // ------------------------------------------------------------------ RPC
 
-  async create(code: string, lang: string, name = ""): Promise<boolean> {
+  async create(code: string, lang: string, name = "", visibility: Visibility = "private"): Promise<boolean> {
     if (this.meta("lang")) return false;
     this.setMeta("lang", lang);
     this.setMeta("code", code);
+    this.setMeta("visibility", visibility === "public" ? "public" : "private");
     this.setMeta("name", name.normalize("NFC").trim().replace(/\s+/g, " ").slice(0, 30));
     this.setMeta("created", String(Date.now()));
     this.touch();
@@ -157,6 +193,7 @@ export class Room extends DurableObject<Env> {
     }
     const fresh = crypto.randomUUID();
     this.sql.exec("INSERT INTO players (key, name, token, joined) VALUES (?, ?, ?, ?)", key, clean, fresh, Date.now());
+    if (!this.meta("owner")) this.setMeta("owner", key); // the creator joins first
     this.touch();
     await this.broadcast();
     this.event(`👋 ${clean} rejoint la room`);
@@ -240,6 +277,29 @@ export class Room extends DurableObject<Env> {
     return { ok: true };
   }
 
+  /** Undo a give-up while the hour is still running (the word was not revealed). */
+  async resume(token: string): Promise<{ ok: true } | RoomError> {
+    const me = this.player(token);
+    const L = await this.lang();
+    if (!me || !L) return { error: "auth" };
+    const round = roundAt(L.meta);
+    if (this.result(round, me.key)?.status !== "gaveup") return { error: "not_given_up" };
+    this.sql.exec("UPDATE results SET status = 'playing', finished = NULL WHERE round = ? AND player = ?", round, me.key);
+    await this.broadcast();
+    this.event(`↩️ ${me.name} reprend la partie`);
+    return { ok: true };
+  }
+
+  async setVisibility(token: string, visibility: Visibility): Promise<{ ok: true } | RoomError> {
+    const me = this.player(token);
+    if (!me) return { error: "auth" };
+    if (this.meta("owner") !== me.key) return { error: "forbidden" };
+    this.setMeta("visibility", visibility === "public" ? "public" : "private");
+    await this.broadcast();
+    this.event(visibility === "public" ? "🌍 La room est maintenant publique" : "🔒 La room est maintenant privée");
+    return { ok: true };
+  }
+
   /**
    * The answer and everyone's words for a round: only once I found it, or once the hour is over
    * (giving up does not reveal the word before the end of the hour).
@@ -285,6 +345,8 @@ export class Room extends DurableObject<Env> {
 
   async alarm() {
     // no activity for EXPIRY_MS: the room disappears
+    const code = this.meta("code");
+    if (code) await this.directory().remove(code).catch(() => {});
     await this.ctx.storage.deleteAll();
   }
 }

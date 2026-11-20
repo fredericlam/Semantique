@@ -2,8 +2,9 @@
   import { heat, level } from "./lib/heat.ts";
   import type { Snapshot } from "./lib/room.ts";
 
-  let { snap, me, vocabSize, connected, onshare, onleave }:
-    { snap: Snapshot; me: string; vocabSize: number; connected: boolean; onshare: () => void; onleave: () => void } = $props();
+  let { snap, me, vocabSize, connected, onshare, onleave, ontogglevisibility }:
+    { snap: Snapshot; me: string; vocabSize: number; connected: boolean; onshare: () => void; onleave: () => void; ontogglevisibility: () => void } = $props();
+  const isOwner = $derived(snap.owner === me);
 
   let tab = $state<"live" | "points">("live");
 
@@ -29,6 +30,11 @@
       <span class="meta-line">
         <span class="dot" class:on={connected} title={connected ? "en direct" : "reconnexion…"}></span>
         <span class="kicker">code</span> <span class="code">{snap.code}</span>
+        {#if isOwner}
+          <button class="vis" onclick={ontogglevisibility} title="Changer la visibilité (tu as créé cette room)">{snap.visibility === "public" ? "🌍 publique" : "🔒 privée"}</button>
+        {:else}
+          <span class="vis ro">{snap.visibility === "public" ? "🌍" : "🔒"}</span>
+        {/if}
         <span class="actions">
           <button class="mini" onclick={onshare}>🔗 inviter</button>
           <button class="mini ghost" onclick={onleave} aria-label="Quitter la room">quitter</button>
@@ -94,6 +100,8 @@
   .dot.on { background: #22c55e; box-shadow: 0 0 8px #22c55e; animation: blink 2s infinite; }
   @keyframes blink { 50% { opacity: 0.5; } }
   .actions { display: flex; gap: 0.35rem; margin-left: auto; }
+  .vis { background: var(--panel-2); border: 0; border-radius: 99px; padding: 0.1rem 0.5rem; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+  .vis.ro { background: none; padding: 0; }
   .mini { white-space: nowrap; background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 99px; padding: 0.2rem 0.65rem; font-size: 0.8rem; font-weight: 700; }
   .mini.ghost { background: var(--panel); color: var(--ink); }
 

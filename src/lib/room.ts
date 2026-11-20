@@ -10,9 +10,13 @@ export interface PlayerRound {
   place: number | null;
 }
 
+export type Visibility = "public" | "private";
+
 export interface Snapshot {
   code: string;
   name: string;
+  visibility: Visibility;
+  owner: string | null;
   round: number;
   players: { name: string; online: boolean; now: PlayerRound | null; points: number; wins: number }[];
 }
@@ -34,6 +38,8 @@ export const ROOM_ERRORS: Record<string, string> = {
   finished: "Tu as déjà fini cette manche.",
   no_hint: "Plus d'indice : tu as déjà le mot le plus proche.",
   locked: "Le mot sera révélé à la fin de l'heure.",
+  forbidden: "Seul·e le créateur ou la créatrice de la room peut faire ça.",
+  not_given_up: "Tu n'as pas abandonné cette manche.",
 };
 
 class RoomError extends Error {
@@ -55,7 +61,21 @@ async function call<T>(lang: string, path: string, body?: unknown): Promise<T> {
 
 export const cleanCode = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
 
-export const createRoom = (lang: string, name: string) => call<{ code: string }>(lang, "", { name });
+export interface PublicRoom {
+  code: string;
+  name: string;
+  players: number;
+  online: number;
+  found: number;
+  round: number;
+  lastActive: number;
+}
+
+export const listRooms = (lang: string) => call<PublicRoom[]>(lang, "");
+export const createRoom = (lang: string, name: string, visibility: Visibility) => call<{ code: string }>(lang, "", { name, visibility });
+export const roomResume = (lang: string, s: Session) => call<{ ok: true }>(lang, `/${s.code}/resume`, { token: s.token });
+export const roomSetVisibility = (lang: string, s: Session, visibility: Visibility) =>
+  call<{ ok: true }>(lang, `/${s.code}/visibility`, { token: s.token, visibility });
 export const joinRoom = (lang: string, code: string, name: string, token?: string) =>
   call<{ token: string; name: string }>(lang, `/${code}/join`, { name, token });
 export const roomState = (lang: string, code: string) => call<Snapshot>(lang, `/${code}`);

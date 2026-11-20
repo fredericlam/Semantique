@@ -3,9 +3,10 @@
   import { isStandalone } from "./lib/pwa.ts";
   import GuessRow from "./GuessRow.svelte";
   import RoomBoard from "./RoomBoard.svelte";
+  import RoomsPage from "./RoomsPage.svelte";
   import {
-    cleanCode, connect, createRoom, joinRoom, lastName, lastRoom, roomGiveUp, roomGuess, roomHint, roomMine, roomReveal,
-    roomState, savedSession, saveSession, type RoomGuess, type Session, type Snapshot,
+    cleanCode, connect, createRoom, joinRoom, lastName, lastRoom, roomGiveUp, roomGuess, roomHint, roomMine, roomResume,
+    roomReveal, roomSetVisibility, roomState, savedSession, saveSession, type RoomGuess, type Session, type Snapshot, type Visibility,
   } from "./lib/room.ts";
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, level, temperature } from "./lib/heat.ts";
@@ -52,6 +53,9 @@
   let joinCode = $state("");
   let joinName = $state("");
   let roomName = $state("");
+  let roomVisibility = $state<Visibility>("public");
+  let dialogMode = $state<"join" | "create">("join");
+  let page = $state<"game" | "rooms">(location.pathname.startsWith("/rooms") ? "rooms" : "game");
   let joinError = $state("");
   let joinBusy = $state(false);
   let disconnect: (() => void) | null = null;
@@ -148,7 +152,8 @@
     setTimeout(() => (toasts = toasts.filter((t) => t.id !== id)), 4500);
   }
 
-  function openRoomDialog(code = "") {
+  function openRoomDialog(code = "", mode: "join" | "create" = "join") {
+    dialogMode = mode;
     joinCode = code;
     joinName = joinName || lastName();
     joinError = "";
@@ -176,10 +181,11 @@
     if (!name) return (joinError = "Choisis ton nom de joueur.");
     joinBusy = true;
     try {
-      const code = create ? (await createRoom(LANG, roomName)).code : cleanCode(joinCode);
+      const code = create ? (await createRoom(LANG, roomName, roomVisibility)).code : cleanCode(joinCode);
       if (code.length !== 5) throw new Error("Le code fait 5 caractères.");
       const res = await joinRoom(LANG, code, name, savedSession(code)?.token);
       roomDialog.close();
+      page = "game";
       await enterRoom({ code, name: res.name, token: res.token });
       toast(create ? `« ${snap?.name} » créée (code ${code}) : invite tes potes !` : `Bienvenue dans « ${snap?.name} » 👋`);
     } catch (e) {
@@ -187,6 +193,44 @@
     } finally {
       joinBusy = false;
     }
+  }
+
+  function goPage(p: "game" | "rooms") {
+    page = p;
+    const path = p === "rooms" ? "/rooms" : session ? `/room/${session.code}` : "/";
+    if (location.pathname !== path) history.pushState(null, "", path);
+    scrollTo({ top: 0 });
+  }
+
+  onMount(() => {
+    const onPop = () => (page = location.pathname.startsWith("/rooms") ? "rooms" : "game");
+    addEventListener("popstate", onPop);
+    return () => removeEventListener("popstate", onPop);
+  });
+
+  async function toggleVisibility() {
+    if (!session || !snap) return;
+    try {
+      await roomSetVisibility(LANG, session, snap.visibility === "public" ? "private" : "public");
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  }
+
+  /** Back into the round after giving up — the word was not revealed yet. */
+  async function resume() {
+    if (session) {
+      try {
+        await roomResume(LANG, session);
+      } catch (e) {
+        return toast((e as Error).message);
+      }
+    }
+    game.status = "playing";
+    top = [];
+    persist();
+    await tick();
+    inputEl?.focus();
   }
 
   async function leaveRoom() {
@@ -356,7 +400,7 @@
     </div>
     <div class="header-actions">
       {#if !isStandalone()}<a class="icon install" href="/installer/" aria-label="Installer l'app" title="Installer l'app">📲</a>{/if}
-      <button class="icon" class:active={!!session} onclick={() => (session ? document.querySelector(".board")?.scrollIntoView({ behavior: "smooth" }) : openRoomDialog())} aria-label="Rooms" title="Jouer en room">👥</button>
+      <button class="icon" class:active={!!session} onclick={() => (session && page === "game" ? document.querySelector(".board")?.scrollIntoView({ behavior: "smooth" }) : goPage("rooms"))} aria-label="Rooms" title="Les rooms">👥</button>
       <button class="icon" onclick={() => statsDialog.showModal()} aria-label="Statistiques">📊</button>
       <button class="icon" onclick={() => helpDialog.showModal()} aria-label="Comment jouer">?</button>
     </div>
@@ -366,11 +410,20 @@
     <p class="note error-box">Impossible de charger le jeu : {loadError}</p>
   {:else if !meta}
     <p class="loading">Chargement…</p>
+  {:else if page === "rooms"}
+    <RoomsPage
+      lang={LANG}
+      current={meta.current}
+      onjoin={(code) => openRoomDialog(code, "join")}
+      oncode={() => openRoomDialog("", "join")}
+      oncreate={() => openRoomDialog("", "create")}
+      onback={() => goPage("game")}
+    />
   {:else}
     {#if session && snap}
-      <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} onleave={leaveRoom} />
+      <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} onleave={leaveRoom} ontogglevisibility={toggleVisibility} />
     {:else}
-      <button class="room-cta" onclick={() => openRoomDialog()}>👥 <span>Défie tes potes : <strong>rejoins une room</strong></span> →</button>
+      <button class="room-cta" onclick={() => goPage("rooms")}>👥 <span>Défie tes potes : <strong>rejoins une room</strong></span> →</button>
     {/if}
 
     {#if newWordReady || round !== meta.current}
@@ -430,6 +483,9 @@
               <p class="kicker">🏳️ abandon</p>
               <p class="secret">{roundLabel(round + 1)}</p>
               <p class="muted small">le mot sera révélé à {roundLabel(round + 1)}, dans <strong class="mono">{countdown}</strong></p>
+              {#if meta && round === meta.current}
+                <button class="pill resume" onclick={resume}>↩️ reprendre la partie</button>
+              {/if}
             {/if}
             <p>ton meilleur : <strong>{best?.word ?? "aucun"}</strong>{best ? ` (n°${best.rank})` : ""}</p>
           {/if}
@@ -540,28 +596,48 @@
 
 <dialog bind:this={roomDialog} class="room-dialog" onclick={(e) => e.target === roomDialog && roomDialog.close()}>
   <span class="tape" aria-hidden="true"></span>
-  <h2>jouer en room</h2>
-  <p class="muted small">Même mot de l'heure pour tout le monde, progression en direct, classement entre vous.</p>
-  <form onsubmit={(e) => { e.preventDefault(); submitJoin(false); }}>
-    <label>
-      <span>Joueur</span>
-      <input bind:value={joinName} maxlength="20" placeholder="ton nom" autocomplete="nickname" autocapitalize="words" required />
-    </label>
-    <label>
-      <span>Code de la room</span>
-      <input class="code-input" bind:value={joinCode} oninput={() => (joinCode = cleanCode(joinCode))} maxlength="5" placeholder="ex. PALM7" autocomplete="off" autocapitalize="characters" spellcheck="false" />
-    </label>
-    {#if joinError}<p class="err">{joinError}</p>{/if}
-    <button class="go wide" type="submit" disabled={joinBusy || joinCode.length !== 5}>rejoindre la room</button>
-  </form>
-  <div class="or"><span>ou crée la tienne</span></div>
-  <form onsubmit={(e) => { e.preventDefault(); submitJoin(true); }}>
-    <label>
-      <span>Nom de la room <span class="muted">(facultatif)</span></span>
-      <input bind:value={roomName} maxlength="30" placeholder="ex. Les Flamants roses" autocomplete="off" />
-    </label>
-    <button class="pill wide-pill" type="submit" disabled={joinBusy}>✨ créer la room</button>
-  </form>
+  {#if dialogMode === "join"}
+    <h2>rejoindre la room</h2>
+    <form onsubmit={(e) => { e.preventDefault(); submitJoin(false); }}>
+      <label>
+        <span>Joueur</span>
+        <input bind:value={joinName} maxlength="20" placeholder="ton nom" autocomplete="nickname" autocapitalize="words" required />
+      </label>
+      <label>
+        <span>Code de la room</span>
+        <input class="code-input" bind:value={joinCode} oninput={() => (joinCode = cleanCode(joinCode))} maxlength="5" placeholder="ex. PALM7" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+      </label>
+      {#if joinError}<p class="err">{joinError}</p>{/if}
+      <button class="go wide" type="submit" disabled={joinBusy || joinCode.length !== 5}>rejoindre la room</button>
+    </form>
+    <button class="switch" onclick={() => ((dialogMode = "create"), (joinError = ""))}>✨ plutôt créer une room</button>
+  {:else}
+    <h2>créer une room</h2>
+    <form onsubmit={(e) => { e.preventDefault(); submitJoin(true); }}>
+      <label>
+        <span>Joueur</span>
+        <input bind:value={joinName} maxlength="20" placeholder="ton nom" autocomplete="nickname" autocapitalize="words" required />
+      </label>
+      <label>
+        <span>Nom de la room <span class="muted">(facultatif)</span></span>
+        <input bind:value={roomName} maxlength="30" placeholder="ex. Les Flamants roses" autocomplete="off" />
+      </label>
+      <fieldset class="vis">
+        <legend>Visibilité</legend>
+        <label class:on={roomVisibility === "public"}>
+          <input type="radio" bind:group={roomVisibility} value="public" />
+          <strong>🌍 publique</strong><span>visible dans la liste, tout le monde peut entrer</span>
+        </label>
+        <label class:on={roomVisibility === "private"}>
+          <input type="radio" bind:group={roomVisibility} value="private" />
+          <strong>🔒 privée</strong><span>uniquement avec le code</span>
+        </label>
+      </fieldset>
+      {#if joinError}<p class="err">{joinError}</p>{/if}
+      <button class="go wide" type="submit" disabled={joinBusy}>✨ créer la room</button>
+    </form>
+    <button class="switch" onclick={() => ((dialogMode = "join"), (joinError = ""))}>🔑 j'ai déjà un code</button>
+  {/if}
 </dialog>
 
 <div class="toasts" aria-live="polite">
@@ -750,6 +826,17 @@
   .room-dialog input { box-shadow: var(--shadow-sm); font-size: 1.05rem; padding: 0.65rem 0.85rem; }
   .code-input { font-family: var(--mono); letter-spacing: 0.3em; text-transform: uppercase; }
   .room-dialog .go { width: 100%; padding: 0.8rem; }
+  .switch { display: block; margin: 0.9rem auto 0; background: none; border: 0; font-weight: 700; color: var(--pink); }
+  .vis { border: 0; padding: 0; margin: 0; display: grid; gap: 0.4rem; }
+  .vis legend { font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3rem; }
+  .vis label {
+    display: grid; grid-template-columns: auto 1fr; column-gap: 0.5rem; align-items: center; cursor: pointer;
+    border: 2px solid var(--panel-2); border-radius: 12px; padding: 0.5rem 0.7rem; font-weight: 400;
+  }
+  .vis label.on { border-color: var(--pink); background: var(--pink-soft); }
+  .vis input { grid-row: span 2; accent-color: var(--pink); box-shadow: none; }
+  .vis span { grid-column: 2; font-size: 0.78rem; color: var(--muted); }
+  .resume { margin-top: 0.6rem; background: var(--panel); border: 2px solid var(--line); border-radius: 99px; padding: 0.45rem 1rem; font-weight: 700; box-shadow: var(--shadow-sm); }
   .or { display: flex; align-items: center; gap: 0.6rem; margin: 1rem 0 0.7rem; color: var(--muted); font-size: 0.8rem; }
   .or::before, .or::after { content: ""; flex: 1; height: 2px; background: var(--panel-2); }
   .wide-pill { width: 100%; padding: 0.6rem; font-size: 0.95rem; }

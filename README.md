@@ -30,7 +30,8 @@ Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantl
 - **Saisie tolérante** : *chevaux* compte comme *cheval*, *mangeait* comme *manger*. Les accents sont facultatifs (« peche » propose aussi pêche et pécher), et une faute de frappe propose des corrections.
 - **Indices progressifs** : d'abord un mot du top 1000, puis à chaque fois un mot environ 4 fois plus proche que ton meilleur essai. Au rang 1, plus d'indice.
 - **Pistes** : tes essais sont regroupés automatiquement par thème.
-- **Abandonner** ne révèle le mot qu'à la fin de l'heure, pour ne pas fausser la compétition dans les rooms.
+- **Abandonner** ne révèle le mot qu'à la fin de l'heure, pour ne pas fausser la compétition dans les rooms. Tant que l'heure n'est pas finie, on peut **reprendre la partie** (↩️).
+- **Rooms publiques ou privées** : la page `/rooms` liste les rooms publiques, triées par activité, avec un bouton « rejoindre ». Une room privée ne se rejoint qu'avec son code. Le créateur peut changer la visibilité à tout moment. Chaque room a un nom libre, distinct de son code.
 - **Rooms** : un code de 5 caractères (sans O/0 ni I/1) et un pseudo, refusé s'il est déjà pris dans la room. Tout le monde joue le mot de l'heure. La progression des autres s'affiche en direct, sans leurs mots. Points par manche : 5 / 3 / 2 pour les trois premiers à trouver, puis 1, avec +1 si aucun indice n'a été utilisé. Une room s'efface après 30 jours sans activité. On la rejoint par le bouton 👥 ou par un lien `/room/CODE` ; en rouvrant l'app, on retrouve automatiquement sa dernière room.
 
 ---
@@ -43,7 +44,8 @@ navigateur (Svelte 5 + Vite, PWA)
    ▼
 Cloudflare Worker (Hono) ──► R2 « semantique-data »  (dictionnaire, tables des manches, planning)
    │
-   └──► Durable Object « Room » (un par room, SQLite + WebSockets en direct)
+   ├──► Durable Object « Room » (un par room, SQLite + WebSockets en direct)
+   └──► Durable Object « Directory » (annuaire des rooms publiques)
 ```
 
 | Dossier | Rôle |
