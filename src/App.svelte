@@ -10,7 +10,7 @@
   import HistoryList from "./HistoryList.svelte";
   import {
     cleanCode, connect, createRoom, joinRoom, lastName, lastRoom, roomGiveUp, roomGuess, roomHint, roomMine, roomResume,
-    roomReveal, roomSetVisibility, roomState, savedSession, saveSession, rememberRoom, type RoomGuess, type Session, type Snapshot, type Visibility,
+    roomReveal, roomSetVisibility, roomState, savedSession, saveSession, rememberRoom, myRooms, type RoomGuess, type Session, type Snapshot, type Visibility,
   } from "./lib/room.ts";
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, level, temperature } from "./lib/heat.ts";
@@ -63,7 +63,11 @@
   /** In a room, its level; otherwise the one picked on this device. */
   const playLevel = $derived(session && snap ? snap.level : soloLevel);
   let dialogMode = $state<"join" | "create">("join");
-  let page = $state<"game" | "rooms">(location.pathname.startsWith("/rooms") ? "rooms" : "game");
+  /** game = solo (home), rooms = rooms hub, room = inside one room (its own game). */
+  type Page = "game" | "rooms" | "room";
+  const pageFromPath = (): Page =>
+    location.pathname.startsWith("/rooms") ? "rooms" : /^\/room\/[A-Za-z0-9]{5}\/?$/.test(location.pathname) ? "room" : "game";
+  let page = $state<Page>(pageFromPath());
   let joinError = $state("");
   let joinBusy = $state(false);
   let disconnect: (() => void) | null = null;
@@ -146,22 +150,11 @@
       try {
         meta = await fetchMeta(LANG);
         lex = await loadLexicon(LANG, meta.vecDims, meta.version);
+        // the solo game always loads (home); a /room/CODE link opens that room on top of it
+        const asked = Number(new URLSearchParams(location.search).get("manche"));
+        await openRound(asked >= 1 && asked <= meta.current ? asked : meta.current);
         const fromPath = location.pathname.match(/^\/room\/([A-Za-z0-9]{5})\/?$/)?.[1]?.toUpperCase();
-        const code = fromPath ?? lastRoom();
-        const saved = code ? savedSession(code) : null;
-        if (saved) {
-          try {
-            const ok = await joinRoom(LANG, saved.code, saved.name, saved.token);
-            await enterRoom({ ...saved, name: ok.name });
-          } catch {
-            saveSession(null, saved.code);
-          }
-        }
-        if (!session) {
-          const asked = Number(new URLSearchParams(location.search).get("manche"));
-          await openRound(asked >= 1 && asked <= meta.current ? asked : meta.current);
-          if (fromPath) openRoomDialog(fromPath);
-        }
+        if (fromPath) await enterSaved(fromPath);
         if (!localStorage.getItem("semantique:seen-help")) {
           helpDialog.showModal();
           localStorage.setItem("semantique:seen-help", "1");
@@ -197,7 +190,9 @@
     disconnect?.();
     session = s;
     saveSession(s);
-    history.replaceState(null, "", page === "rooms" ? "/rooms" : `/room/${s.code}`);
+    page = "room";
+    if (location.pathname !== `/room/${s.code}`) history.pushState(null, "", `/room/${s.code}`);
+    scrollTo({ top: 0 });
     snap = await roomState(LANG, s.code);
     rememberRoom(s.code, { roomName: snap.name, level: snap.level });
     disconnect = connect(LANG, s, {
@@ -222,7 +217,6 @@
       if (code.length !== 5) throw new Error("Le code fait 5 caractères.");
       const res = await joinRoom(LANG, code, name, savedSession(code)?.token);
       roomDialog.close();
-      page = "game";
       await enterRoom({ code, name: res.name, token: res.token });
       toast(create ? `« ${snap?.name} » créée (code ${code}) : invite tes potes !` : `Bienvenue dans « ${snap?.name} » 👋`);
     } catch (e) {
@@ -266,30 +260,57 @@
     if (!session && meta) await openRound(meta.current);
   }
 
-  function goPage(p: "game" | "rooms") {
+  /** Leave the room screen (the room membership stays in "mes rooms"). */
+  function closeRoom() {
+    disconnect?.();
+    disconnect = null;
+    session = null;
+    snap = null;
+    roomWords = [];
+  }
+
+  async function goPage(p: "game" | "rooms", push = true) {
+    const wasRoom = !!session;
+    if (wasRoom) closeRoom();
     page = p;
-    const path = p === "rooms" ? "/rooms" : session ? `/room/${session.code}` : "/";
-    if (location.pathname !== path) history.pushState(null, "", path);
+    const path = p === "rooms" ? "/rooms" : "/";
+    if (push && location.pathname !== path) history.pushState(null, "", path);
     scrollTo({ top: 0 });
+    if (p === "game" && meta && wasRoom) await openRound(meta.current); // back to the solo game
   }
 
   onMount(() => {
-    const onPop = () => (page = location.pathname.startsWith("/rooms") ? "rooms" : "game");
+    const onPop = () => {
+      const p = pageFromPath();
+      if (p === "room") enterSaved(location.pathname.slice(6, 11).toUpperCase());
+      else goPage(p, false);
+    };
     addEventListener("popstate", onPop);
     return () => removeEventListener("popstate", onPop);
   });
 
+  /** The room I opened last (for the "reprendre" card of the hub). */
+  function lastOpened() {
+    const code = lastRoom();
+    const r = code ? myRooms().find((x) => x.code === code) : null;
+    return r ? { code: r.code, name: r.roomName ?? `Room ${r.code}` } : null;
+  }
+
   /** Back into a room I already joined on this device (no code, no name to type). */
   async function enterSaved(code: string) {
     const s = savedSession(code);
-    if (!s) return openRoomDialog(code, "join");
+    if (!s) {
+      // not a member yet: show the hub with the join dialog pre-filled
+      await goPage("rooms", false);
+      history.replaceState(null, "", "/rooms");
+      return openRoomDialog(code, "join");
+    }
     try {
       const ok = await joinRoom(LANG, code, s.name, s.token);
-      page = "game";
       await enterRoom({ ...s, name: ok.name });
-      scrollTo({ top: 0 });
     } catch (e) {
       toast((e as Error).message);
+      await goPage("rooms");
     }
   }
 
@@ -319,13 +340,7 @@
   }
 
   async function leaveRoom() {
-    disconnect?.();
-    disconnect = null;
-    if (session) saveSession(null, session.code);
-    session = null;
-    snap = null;
-    history.replaceState(null, "", "/");
-    if (meta) await openRound(meta.current);
+    await goPage("rooms");
   }
 
   async function inviteRoom() {
@@ -485,7 +500,7 @@
     </div>
     <div class="header-actions">
       {#if !isStandalone()}<a class="icon install" href="/installer/" aria-label="Installer l'app" title="Installer l'app">📲</a>{/if}
-      <button class="icon" class:active={!!session} onclick={() => (session && page === "game" ? document.querySelector(".board")?.scrollIntoView({ behavior: "smooth" }) : goPage("rooms"))} aria-label="Rooms" title="Les rooms"><Icon name="users" size="1.45rem" /></button>
+      <button class="icon" class:active={!!session} onclick={() => goPage("rooms")} aria-label="Rooms" title="Les rooms"><Icon name="users" size="1.45rem" /></button>
       <button class="icon" onclick={() => statsDialog.showModal()} aria-label="Statistiques">📊</button>
       <button class="icon" onclick={() => helpDialog.showModal()} aria-label="Comment jouer">?</button>
     </div>
@@ -501,15 +516,18 @@
       current={meta.current}
       onjoin={(code) => (savedSession(code) ? enterSaved(code) : openRoomDialog(code, "join"))}
       onenter={enterSaved}
-      currentRoom={session ? { code: session.code, name: snap?.name ?? session.code } : null}
-      onresume={() => goPage("game")}
+      currentRoom={lastOpened()}
+      onresume={() => { const c = lastRoom(); if (c) enterSaved(c); }}
       oncode={() => openRoomDialog("", "join")}
       oncreate={() => openRoomDialog("", "create")}
       onback={() => goPage("game")}
     />
+  {:else if page === "room" && !(session && snap)}
+    <p class="loading">Ouverture de la room…</p>
   {:else}
     {#if session && snap}
-      <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} onleave={leaveRoom} ontogglevisibility={toggleVisibility} />
+      <button class="room-back" onclick={leaveRoom}><Icon name="arrow-left" /> mes rooms</button>
+      <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} ontogglevisibility={toggleVisibility} />
     {:else}
       {#if SHOW_LEVELS}
       <div class="levels" role="radiogroup" aria-label="Niveau de difficulté">
@@ -674,6 +692,7 @@
       </section>
     {/if}
 
+    {#if !session}
     <HistoryList
       items={pastWords}
       label={roundLabel}
@@ -681,6 +700,7 @@
       current={meta.current}
       onplay={(n) => { scrollTo({ top: 0, behavior: "smooth" }); openRound(n); }}
     />
+    {/if}
 
     <footer>
       <button class="bug-card" onclick={() => bugDialog?.open()}>
@@ -966,6 +986,7 @@
   .levels button { flex: 1; border: 0; background: none; border-radius: 99px; padding: 0.4rem 0.3rem; font-weight: 700; font-size: 0.88rem; color: var(--muted); white-space: nowrap; }
   .levels button.on { background: var(--pink); color: white; box-shadow: var(--shadow-sm); }
   .levels.in-dialog { margin: 0; }
+  .room-back { background: none; border: 0; padding: 0.2rem 0; margin: 0 0 4px; font-weight: 700; color: var(--muted); display: inline-flex; align-items: center; gap: 0.3rem; }
   .room-cta {
     display: flex; align-items: center; gap: 0.75rem; width: 100%; margin: 4px 0 12px; padding: 0.6rem 0.9rem; text-align: left;
     background: var(--panel); border: 2px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-sm); color: var(--ink);

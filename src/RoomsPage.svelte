@@ -75,7 +75,7 @@
 
   {#if currentRoom}
     <button class="current" onclick={onresume}>
-      <span class="live">● en cours</span>
+      <span class="live">↩ dernière room</span>
       <span class="info"><span class="name">{currentRoom.name}</span><span class="meta">code <strong>{currentRoom.code}</strong></span></span>
       <span class="go-back">reprendre <Icon name="arrow-right" /></span>
     </button>
@@ -92,7 +92,7 @@
       {#each mine as r (r.code)}
         <li class="room" class:gone={r.gone}>
           <div class="info">
-            <span class="name">{r.roomName ?? `Room ${r.code}`} {#if SHOW_LEVELS && r.level}<span class="lvl"><LevelTag level={r.level} /></span>{/if}{#if currentRoom?.code === r.code}<span class="here">en cours</span>{/if}</span>
+            <span class="name">{r.roomName ?? `Room ${r.code}`} {#if SHOW_LEVELS && r.level}<span class="lvl"><LevelTag level={r.level} /></span>{/if}{#if currentRoom?.code === r.code}<span class="here">dernière</span>{/if}</span>
             <span class="meta">
               <button class="code" onclick={() => copy(r.code)} title="Copier le code">{copied === r.code ? "copié ✓" : r.code}</button>
               · toi : <strong>{r.name}</strong>
@@ -104,6 +104,7 @@
             <button class="forget" onclick={() => forget(r.code)}>retirer</button>
           {:else}
             <button class="join" onclick={() => onenter(r.code)}>entrer</button>
+            <button class="x" onclick={() => forget(r.code)} title="Retirer de mes rooms (tu pourras la rejoindre avec un nouveau nom)" aria-label="Retirer de mes rooms">✕</button>
           {/if}
         </li>
       {/each}
@@ -176,6 +177,7 @@
   .here { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; background: #16a34a; color: white; border-radius: 99px; padding: 0.05rem 0.45rem; margin-left: 0.35rem; vertical-align: 0.15em; }
   .code { font-family: var(--mono); font-weight: 700; letter-spacing: 0.1em; background: var(--panel-2); border: 0; border-radius: 6px; padding: 0 0.35rem; color: var(--ink); font-size: 0.8rem; }
   .room.gone { opacity: 0.6; }
+  .x { background: none; border: 0; color: var(--muted); font-weight: 700; padding: 0.2rem 0.3rem; margin-left: -0.3rem; }
   .warn { color: var(--pink); font-weight: 700; }
   .forget { background: var(--panel); border: 2px solid var(--line); border-radius: 99px; padding: 0.35rem 0.85rem; font-weight: 700; white-space: nowrap; }
   .join { background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 99px; padding: 0.35rem 0.85rem; font-weight: 700; white-space: nowrap; }
