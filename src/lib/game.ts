@@ -56,6 +56,10 @@ export const fetchHint = (lang: string, level: string, round: number, rank: numb
 export const fetchTop = (lang: string, level: string, round: number, found?: string) =>
   api<Omit<Guess, "input" | "n">[]>(`/api/${lang}/top?level=${level}&round=${round}&n=100${found ? `&found=${encodeURIComponent(found)}` : ""}`).catch(() => []);
 
+/** Secret words of the last finished rounds (never the current one). */
+export const fetchHistory = (lang: string, level: string) =>
+  api<{ round: number; word: string }[]>(`/api/${lang}/history?level=${level}`).catch(() => []);
+
 // ------------------------------------------------------------------ persistence (per browser)
 
 // adult keeps the original keys, so games played before levels existed are still there

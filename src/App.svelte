@@ -7,6 +7,7 @@
   import BugDialog from "./BugDialog.svelte";
   import Icon from "./Icon.svelte";
   import LevelTag from "./LevelTag.svelte";
+  import HistoryList from "./HistoryList.svelte";
   import {
     cleanCode, connect, createRoom, joinRoom, lastName, lastRoom, roomGiveUp, roomGuess, roomHint, roomMine, roomResume,
     roomReveal, roomSetVisibility, roomState, savedSession, saveSession, type RoomGuess, type Session, type Snapshot, type Visibility,
@@ -14,7 +15,7 @@
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, level, temperature } from "./lib/heat.ts";
   import {
-    buildTracks, computeStats, fetchGuess, fetchHint, fetchMeta, fetchTop, loadState, nextHintRank, saveState, LEVEL_INFO, levelLabel,
+    buildTracks, computeStats, fetchGuess, fetchHistory, fetchHint, fetchMeta, fetchTop, loadState, nextHintRank, saveState, LEVEL_INFO, levelLabel,
     type GameState, type Guess, type Meta,
   } from "./lib/game.ts";
 
@@ -66,6 +67,7 @@
   let joinError = $state("");
   let joinBusy = $state(false);
   let disconnect: (() => void) | null = null;
+  let history = $state<{ round: number; word: string }[]>([]);
   let bugDialog = $state<{ open: () => void }>();
 
   /** Technical context for bug reports — never the room code nor the guessed words. */
@@ -96,12 +98,19 @@
   const newWordReady = $derived(!!meta && remaining === 0);
   const countdown = $derived(`${String(Math.floor(remaining / 60000)).padStart(2, "0")}:${String(Math.floor(remaining / 1000) % 60).padStart(2, "0")}`);
 
-  /** "10h", the hour at which a round started. */
+  /** "10h" (today), "hier 22h", "18/11 9h": the hour at which a round started. */
   function roundLabel(n: number): string {
     if (!meta) return "";
     const t = Date.parse(meta.start) + (n - 1) * meta.period * 1000;
     const hour = new Intl.DateTimeFormat("fr-FR", { hour: "numeric", hourCycle: "h23", timeZone: TZ }).formatToParts(t).find((p) => p.type === "hour")!.value;
-    return `${Number(hour)}h`;
+    const day = (x: number) => new Intl.DateTimeFormat("fr-CA", { timeZone: TZ }).format(x);
+    const today = day(Date.now()), yesterday = day(Date.now() - 86_400_000), that = day(t);
+    const prefix = that === today ? "" : that === yesterday ? "hier " : `${that.slice(8, 10)}/${that.slice(5, 7)} `;
+    return `${prefix}${Number(hour)}h`;
+  }
+
+  async function loadHistory() {
+    history = await fetchHistory(LANG, playLevel);
   }
 
   async function openRound(n: number) {
@@ -121,6 +130,7 @@
     top = [];
     if (lex) for (const g of game.guesses) g.id = lex.index.get(g.word) ?? g.id; // ids depend on the vocab build
     await loadTop();
+    loadHistory();
   }
 
   async function goToLatest() {
@@ -640,6 +650,14 @@
         </ol>
       </section>
     {/if}
+
+    <HistoryList
+      items={history}
+      label={roundLabel}
+      status={session ? null : (n) => loadState(LANG, soloLevel, n)}
+      current={meta.current}
+      onplay={(n) => { scrollTo({ top: 0, behavior: "smooth" }); openRound(n); }}
+    />
 
     <footer>
       <button class="bug-card" onclick={() => bugDialog?.open()}>

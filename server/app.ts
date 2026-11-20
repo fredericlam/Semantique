@@ -103,6 +103,16 @@ export function createApp() {
     return c.json(data.top(L, r, Math.min(500, Number(c.req.query("n")) || 100)));
   });
 
+  /** Words of the last finished rounds (up to 48 h), newest first. The current word is never included. */
+  app.get("/:lang/history", async (c) => {
+    const L = c.get("L"), current = c.get("current");
+    const words = await gameData(c.env.DATA).schedule(L, c.get("level"));
+    if (!words) return c.json({ error: "no data" }, 500);
+    const out = [];
+    for (let n = current - 1; n >= Math.max(1, current - 48); n--) out.push({ round: n, word: words[n - 1] });
+    return c.json(out, 200, { "cache-control": "public, max-age=60" });
+  });
+
   // ---------------------------------------------------------------- rooms
 
   /** Public rooms, most lively first. */

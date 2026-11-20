@@ -62,6 +62,7 @@ const dec = new TextDecoder();
 export class GameData {
   private langs = new Map<string, Promise<Lang | null>>();
   private rounds = new Map<string, Promise<Round | null>>();
+  private schedules = new Map<string, Promise<string[] | null>>();
 
   constructor(private store: Store) {}
 
@@ -107,6 +108,18 @@ export class GameData {
       this.rounds.set(key, p);
     }
     return this.rounds.get(key)!;
+  }
+
+  /** Secret words of a level, in round order. Never send a current or future one to a client. */
+  schedule(L: Lang, level: string): Promise<string[] | null> {
+    const key = `${L.meta.lang}/${level}`;
+    if (!this.schedules.has(key)) {
+      const p = this.store.get(`${L.meta.lang}/private/${level}/schedule.json`)
+        .then((b) => (b ? (JSON.parse(dec.decode(b)).words as string[]) : null));
+      p.then((v) => v ?? this.schedules.delete(key));
+      this.schedules.set(key, p);
+    }
+    return this.schedules.get(key)!;
   }
 
   entry(L: Lang, r: Round, id: number): Entry {

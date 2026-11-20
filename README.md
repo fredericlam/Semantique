@@ -37,6 +37,7 @@ Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantl
 
   Les mots acceptés sont les mêmes pour tous. En solo, le niveau se choisit sous l'en-tête et l'app s'en souvient ; une room a un niveau fixé à sa création. Les parties et les statistiques sont séparées par niveau.
 - **Indices progressifs** : d'abord un mot du top 1000 (top 300 en kid), puis à chaque fois un mot environ 4 fois (3 fois en kid) plus proche que ton meilleur essai. Au rang 1, plus d'indice.
+- **Les heures précédentes** : sous la partie, les mots des 48 dernières heures du niveau en cours, avec ton résultat (🎯 trouvé en N, 🏳️ abandon, pas joué). Le mot d'une heure non jouée est flouté (un toucher le révèle) et on peut encore la jouer. Le serveur (`GET /api/fr/history`) ne renvoie que des heures terminées.
 - **Thème** : 🌓 auto (suit l'appareil), ☀️ clair ou 🌙 sombre, au choix en pied de page.
 - **Pistes** : tes essais sont regroupés automatiquement par thème.
 - **Abandonner** ne révèle le mot qu'à la fin de l'heure, pour ne pas fausser la compétition dans les rooms. Tant que l'heure n'est pas finie, on peut **reprendre la partie** (↩️).
