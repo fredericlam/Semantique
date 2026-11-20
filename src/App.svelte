@@ -590,7 +590,13 @@
   </ul>
   <p>Zéro piège d'orthographe : <em>chevaux</em> = <em>cheval</em>, <em>mangeait</em> = <em>manger</em>, accents facultatifs.</p>
   <p><strong>Pistes</strong> regroupe tes essais par thème. Coincé ? <strong>💡 indice</strong> te donne un mot plus proche que ton meilleur.</p>
-  <p>📲 <a href="/installer/">Installe-la sur ton téléphone</a>, comme une vraie app.</p>
+  {#if !isStandalone()}
+    <a class="install-card" href="/installer/">
+      <img src="/icons/icon-192.png" alt="" width="46" height="46" />
+      <span class="install-text"><strong>Installe Sémantique</strong><small>sur ton écran d'accueil</small></span>
+      <span class="install-arrow" aria-hidden="true">→</span>
+    </a>
+  {/if}
   <form method="dialog"><button class="go wide">c'est parti 🌴</button></form>
 </dialog>
 
@@ -826,6 +832,17 @@
   .room-dialog input { box-shadow: var(--shadow-sm); font-size: 1.05rem; padding: 0.65rem 0.85rem; }
   .code-input { font-family: var(--mono); letter-spacing: 0.3em; text-transform: uppercase; }
   .room-dialog .go { width: 100%; padding: 0.8rem; }
+  .install-card {
+    display: flex; align-items: center; gap: 0.8rem; margin: 1rem 0 0.2rem; padding: 0.6rem 0.8rem;
+    background: var(--panel-2); border: 2px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-sm);
+    color: var(--ink); text-decoration: none; rotate: -0.6deg; transition: translate 0.1s;
+  }
+  .install-card:hover { translate: 0 -1px; }
+  .install-card:active { translate: 2px 2px; box-shadow: none; }
+  .install-card img { border-radius: 11px; border: 2px solid var(--line); flex: none; }
+  .install-text { flex: 1; display: grid; line-height: 1.25; }
+  .install-text small { color: var(--muted); font-size: 0.82rem; }
+  .install-arrow { font-family: var(--mono); font-weight: 700; font-size: 1.2rem; color: var(--pink); }
   .switch { display: block; margin: 0.9rem auto 0; background: none; border: 0; font-weight: 700; color: var(--pink); }
   .vis { border: 0; padding: 0; margin: 0; display: grid; gap: 0.4rem; }
   .vis legend { font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3rem; }
@@ -837,9 +854,6 @@
   .vis input { grid-row: span 2; accent-color: var(--pink); box-shadow: none; }
   .vis span { grid-column: 2; font-size: 0.78rem; color: var(--muted); }
   .resume { margin-top: 0.6rem; background: var(--panel); border: 2px solid var(--line); border-radius: 99px; padding: 0.45rem 1rem; font-weight: 700; box-shadow: var(--shadow-sm); }
-  .or { display: flex; align-items: center; gap: 0.6rem; margin: 1rem 0 0.7rem; color: var(--muted); font-size: 0.8rem; }
-  .or::before, .or::after { content: ""; flex: 1; height: 2px; background: var(--panel-2); }
-  .wide-pill { width: 100%; padding: 0.6rem; font-size: 0.95rem; }
 
   .toasts { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); translate: -50% 0; z-index: 20; display: grid; gap: 0.4rem; width: min(420px, calc(100vw - 32px)); pointer-events: none; }
   .toast {
