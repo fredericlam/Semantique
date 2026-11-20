@@ -7,10 +7,13 @@
   import backpack from "@phosphor-icons/core/assets/duotone/backpack-duotone.svg?raw";
   import headphones from "@phosphor-icons/core/assets/duotone/headphones-duotone.svg?raw";
   import coffee from "@phosphor-icons/core/assets/duotone/coffee-duotone.svg?raw";
+  import circleHalf from "@phosphor-icons/core/assets/duotone/circle-half-duotone.svg?raw";
+  import sun from "@phosphor-icons/core/assets/duotone/sun-duotone.svg?raw";
+  import moon from "@phosphor-icons/core/assets/duotone/moon-stars-duotone.svg?raw";
 
   const ICONS = {
     users: usersThree, lightbulb, "arrow-right": arrowRight, "arrow-left": arrowLeft,
-    backpack, headphones, coffee,
+    backpack, headphones, coffee, "circle-half": circleHalf, sun, moon,
   } as const;
   export type IconName = keyof typeof ICONS;
 </script>

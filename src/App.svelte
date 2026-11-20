@@ -710,8 +710,8 @@
       </button>
       <div class="foot">
       <div class="theme-switch" role="radiogroup" aria-label="Thème">
-        {#each [["auto", "🌓", "Thème automatique (suit l'appareil)"], ["light", "☀️", "Thème clair"], ["dark", "🌙", "Thème sombre"]] as [t, icon, label] (t)}
-          <button role="radio" aria-checked={theme === t} aria-label={label} title={label} class:on={theme === t} onclick={() => setTheme(t as Theme)}>{icon}</button>
+        {#each [["auto", "circle-half", "Thème automatique (suit l'appareil)"], ["light", "sun", "Thème clair"], ["dark", "moon", "Thème sombre"]] as const as [t, icon, label] (t)}
+          <button role="radio" aria-checked={theme === t} aria-label={label} title={label} class:on={theme === t} onclick={() => setTheme(t)}><Icon name={icon} size="1.05rem" /></button>
         {/each}
       </div>
       <ul class="credits">
@@ -1006,11 +1006,13 @@
   .room-dialog input { box-shadow: var(--shadow-sm); font-size: 1.05rem; padding: 0.65rem 0.85rem; }
   .code-input { font-family: var(--mono); letter-spacing: 0.3em; text-transform: uppercase; }
   .room-dialog .go { width: 100%; padding: 0.8rem; }
-  .foot { display: grid; grid-template-columns: 1fr 2fr; gap: 0.8rem; align-items: start; }
+  /* one flowing line: wraps only when there is no room left */
+  .foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.9rem; text-align: left; }
   .theme-switch { display: flex; gap: 2px; padding: 2px; width: fit-content; background: var(--panel-2); border-radius: 99px; }
-  .theme-switch button { border: 0; background: none; border-radius: 99px; width: 1.75rem; height: 1.75rem; padding: 0; font-size: 0.85rem; line-height: 1; opacity: 0.55; }
-  .theme-switch button.on { background: var(--panel); opacity: 1; box-shadow: var(--shadow-sm); }
-  .credits { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.15rem; text-align: left; font-size: 0.68rem; line-height: 1.35; }
+  .theme-switch button { display: grid; place-items: center; border: 0; background: none; border-radius: 99px; width: 1.75rem; height: 1.75rem; padding: 0; color: var(--muted); }
+  .theme-switch button.on { background: var(--panel); color: var(--pink); box-shadow: var(--shadow-sm); }
+  .credits { list-style: none; padding: 0; margin: 0; display: contents; font-size: 0.68rem; line-height: 1.35; }
+  .credits li { font-size: 0.68rem; white-space: nowrap; }
   .credits a { color: var(--ink); font-weight: 600; text-decoration-color: var(--pink); text-underline-offset: 2px; }
   .credits a:hover { color: var(--pink); }
   .credits .lic { font-family: var(--mono); font-size: 0.58rem; border: 1px solid currentColor; border-radius: 4px; padding: 0 0.25rem; margin-left: 0.25rem; color: var(--muted); }
