@@ -1,0 +1,15 @@
+{
+  "lang": "fr",
+  "timezone": "Europe/Paris",
+  "start": "2026-11-20T00:00:00+01:00",
+  "period": 3600,
+  "rounds": 2000,
+  "vocabSize": 28849,
+  "dims": 500,
+  "vecDims": 48,
+  "credits": [
+    "Vecteurs : Jean-Philippe Fauconnier, frWac (CC-BY) — https://fauconnier.github.io/#data",
+    "Lexique : Lexique 3.83, New & Pallier (CC BY-SA 4.0) — http://www.lexique.org"
+  ],
+  "version": "404fd0e41f"
+}

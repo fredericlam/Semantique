@@ -1,0 +1,23 @@
+{
+  "name": "semantique",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c cyan,magenta \"tsx watch server/node.ts\" \"vite\"",
+    "build": "vite build",
+    "check": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.11",
+    "hono": "^4.13.19"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@types/node": "^26.6.6",
+    "concurrently": "^10.0.7",
+    "svelte": "^5.58.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}

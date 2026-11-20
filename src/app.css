@@ -1,0 +1,98 @@
+/* Golden hour on Ocean Drive — peach, neon pink, pool teal, night purple. */
+:root {
+  --sky-top: #ffd9c2;
+  --sky-bottom: #ffb3b8;
+  --panel: #fff6ee;
+  --panel-2: #ffe9dc;
+  --ink: #2a1440;
+  --muted: #8c5d7e;
+  --line: #2a1440;
+  --pink: #ff3d8b;
+  --pink-soft: #ffd0e2;
+  --peach: #ff9f7a;
+  --teal: #12c2c4;
+  --teal-soft: #c6f3f1;
+  --purple: #5d2a8c;
+  --sun-a: #ffd23f;
+  --sun-b: #ff3d8b;
+  --tape: rgb(18 194 196 / 0.55);
+  --shadow: 4px 4px 0 var(--ink);
+  --shadow-sm: 2px 2px 0 var(--ink);
+  --grid: rgb(93 42 140 / 0.12);
+  --title-glow: 0 0 0 transparent;
+  --font: "Outfit", system-ui, sans-serif;
+  --mono: "Space Mono", ui-monospace, monospace;
+  --script: "Yellowtail", cursive;
+  color-scheme: light dark;
+  font-family: var(--font);
+  color: var(--ink);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Night drive */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sky-top: #1b0f2e;
+    --sky-bottom: #3d1450;
+    --panel: #2a1745;
+    --panel-2: #351d57;
+    --ink: #ffe9dc;
+    --muted: #c49bc0;
+    --line: #ff5fa2;
+    --pink: #ff4f9a;
+    --pink-soft: #4a1d4f;
+    --peach: #ffab8a;
+    --teal: #2de2e6;
+    --teal-soft: #173d52;
+    --purple: #c58bff;
+    --tape: rgb(45 226 230 / 0.35);
+    --shadow: 0 0 0 2px var(--line), 0 0 18px rgb(255 79 154 / 0.35);
+    --shadow-sm: 0 0 10px rgb(255 79 154 / 0.3);
+    --grid: rgb(45 226 230 / 0.12);
+    --title-glow: 0 0 18px rgb(255 79 154 / 0.8);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgb(255 210 63 / 0.35), transparent 60%),
+    linear-gradient(180deg, var(--sky-top), var(--sky-bottom)) fixed;
+  background-color: var(--sky-top);
+}
+
+/* bedroom-wall dots + synthwave floor grid */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(var(--grid) 1.2px, transparent 1.6px) 0 0 / 22px 22px;
+  mask-image: linear-gradient(180deg, black, transparent 70%);
+}
+body::after {
+  content: "";
+  position: fixed;
+  left: -50%;
+  right: -50%;
+  bottom: 0;
+  height: 32vh;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 48px 100%,
+    linear-gradient(0deg, var(--grid) 1px, transparent 1px) 0 0 / 100% 28px;
+  transform: perspective(300px) rotateX(60deg);
+  transform-origin: bottom;
+  mask-image: linear-gradient(0deg, black, transparent);
+}
+
+button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { cursor: default; opacity: 0.45; }
+:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+::selection { background: var(--pink); color: white; }

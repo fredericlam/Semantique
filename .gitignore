@@ -1,0 +1,7 @@
+.venv/
+data/raw/
+data/out/*/private/
+__pycache__/
+data/secret_seed
+node_modules/
+dist/
