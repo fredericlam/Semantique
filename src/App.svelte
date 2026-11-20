@@ -1043,9 +1043,12 @@
   .room-back { background: none; border: 0; padding: 0.2rem 0; margin: 0 0 4px; font-weight: 700; color: var(--muted); display: inline-flex; align-items: center; gap: 0.3rem; }
   .room-cta {
     display: flex; align-items: center; gap: 0.75rem; width: 100%; margin: 4px 0 12px; padding: 0.6rem 0.9rem; text-align: left;
-    background: var(--panel); border: 2px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-sm); color: var(--ink);
-    rotate: -0.5deg; transition: translate 0.1s;
+    background: linear-gradient(100deg, var(--sun-a), var(--pink)); border: 2px solid var(--line); border-radius: 16px;
+    box-shadow: var(--shadow-sm); color: #2a1440; rotate: -0.5deg; transition: translate 0.1s;
   }
+  /* same look as the "dernière room" card of the rooms hub */
+  .room-cta .cta-emoji, .room-cta .install-arrow { color: #2a1440; }
+  .room-cta .cta-text small { color: #2a1440; opacity: 0.75; }
   .room-cta:active { translate: 2px 2px; box-shadow: none; }
   .cta-emoji, .bug-emoji { display: inline-flex; color: var(--pink); }
   .home { color: inherit; text-decoration: none; }
