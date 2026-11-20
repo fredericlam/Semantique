@@ -1006,13 +1006,17 @@
   .room-dialog input { box-shadow: var(--shadow-sm); font-size: 1.05rem; padding: 0.65rem 0.85rem; }
   .code-input { font-family: var(--mono); letter-spacing: 0.3em; text-transform: uppercase; }
   .room-dialog .go { width: 100%; padding: 0.8rem; }
-  /* one flowing line: wraps only when there is no room left */
-  .foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.9rem; text-align: left; }
-  .theme-switch { display: flex; gap: 2px; padding: 2px; width: fit-content; background: var(--panel-2); border-radius: 99px; }
+  /* theme icons in their own column; credits flow on the right and wrap only there */
+  .foot { display: flex; align-items: center; gap: 0.8rem; text-align: left; }
+  .theme-switch { display: flex; flex: none; gap: 2px; padding: 2px; width: fit-content; background: var(--panel-2); border-radius: 99px; }
   .theme-switch button { display: grid; place-items: center; border: 0; background: none; border-radius: 99px; width: 1.75rem; height: 1.75rem; padding: 0; color: var(--muted); }
   .theme-switch button.on { background: var(--panel); color: var(--pink); box-shadow: var(--shadow-sm); }
-  .credits { list-style: none; padding: 0; margin: 0; display: contents; font-size: 0.68rem; line-height: 1.35; }
-  .credits li { font-size: 0.68rem; white-space: nowrap; }
+  .credits {
+    list-style: none; padding: 0; margin: 0; flex: 1; min-width: 0;
+    display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 0.15rem 0.9rem;
+    min-height: 1.95rem; font-size: 0.68rem; line-height: 1.4;
+  }
+  .credits li { white-space: nowrap; }
   .credits a { color: var(--ink); font-weight: 600; text-decoration-color: var(--pink); text-underline-offset: 2px; }
   .credits a:hover { color: var(--pink); }
   .credits .lic { font-family: var(--mono); font-size: 0.58rem; border: 1px solid currentColor; border-radius: 4px; padding: 0 0.25rem; margin-left: 0.25rem; color: var(--muted); }
