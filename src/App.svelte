@@ -677,7 +677,8 @@
     {:else if !over}
       <div class="note">
         <span class="tape" aria-hidden="true"></span>
-        <p><strong>Trouve le mot secret.</strong> Chaque essai te dit à quel point tu en es proche <em>par le sens</em>.</p>
+        <p><strong>Trouve le mot de l'heure.</strong> Chaque essai te dit à quel point tu en es proche <em>par le sens</em>.</p>
+        <p class="same-word">🌍 Un nouveau mot chaque heure, <strong>le même pour tout le monde</strong>, en solo comme dans toutes les rooms.</p>
         <p class="scale">🧊 🌊 🌴 ☀️ 🥵 🔥 🎯</p>
         <p class="muted">Commence large (un animal, une émotion, un objet…), puis resserre autour des pistes chaudes.</p>
       </div>
@@ -753,7 +754,7 @@
 <dialog bind:this={helpDialog} onclick={(e) => e.target === helpDialog && helpDialog.close()}>
   <span class="tape" aria-hidden="true"></span>
   <h2>comment jouer</h2>
-  <p><strong>Un nouveau mot secret toutes les heures.</strong> Chaque mot proposé reçoit une <strong>température</strong> : plus il est proche du secret par le sens, plus il est chaud. 100° = trouvé. Le petit <strong>n°</strong> à côté, c'est son rang (n°1 = le plus proche).</p>
+  <p><strong>Un nouveau mot secret toutes les heures, le même pour tout le monde</strong>, en solo comme dans toutes les rooms : tu peux comparer ta partie avec n'importe qui. Chaque mot proposé reçoit une <strong>température</strong> : plus il est proche du secret par le sens, plus il est chaud. 100° = trouvé. Le petit <strong>n°</strong> à côté, c'est son rang (n°1 = le plus proche).</p>
   <ul class="legend">
     {#each LEVELS as l, i}
       <li><span class="emoji">{l.emoji}</span> <strong>{l.label}</strong> <span class="muted mono small">{i === 0 ? "100°" : l.maxRank === Infinity ? `< ${temperature(LEVELS[i - 1].maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°` : `≥ ${temperature(l.maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°`}</span></li>
@@ -1008,6 +1009,7 @@
   .levels button { flex: 1; border: 0; background: none; border-radius: 99px; padding: 0.4rem 0.3rem; font-weight: 700; font-size: 0.88rem; color: var(--muted); white-space: nowrap; }
   .levels button.on { background: var(--pink); color: white; box-shadow: var(--shadow-sm); }
   .levels.in-dialog { margin: 0; }
+  .same-word { font-size: 0.88rem; background: var(--panel-2); border-radius: 10px; padding: 0.45rem 0.65rem; }
   .room-back { background: none; border: 0; padding: 0.2rem 0; margin: 0 0 4px; font-weight: 700; color: var(--muted); display: inline-flex; align-items: center; gap: 0.3rem; }
   .room-cta {
     display: flex; align-items: center; gap: 0.75rem; width: 100%; margin: 4px 0 12px; padding: 0.6rem 0.9rem; text-align: left;

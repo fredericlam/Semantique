@@ -83,6 +83,7 @@
     {/if}
   </div>
 
+  <p class="same">🌍 mot de l'heure commun à tous, solo et rooms</p>
   <div class="seg" role="tablist">
     <button role="tab" aria-selected={tab === "live"} onclick={() => (tab = "live")}>cette heure · {found}/{snap.players.length} 🎯</button>
     <button role="tab" aria-selected={tab === "points"} onclick={() => (tab = "points")}>classement</button>
@@ -162,7 +163,8 @@
   .win { color: var(--pink); font-weight: 700; }
   .muted { color: var(--muted); }
   .pos { width: 1.6rem; text-align: center; font-family: var(--mono); font-weight: 700; }
-  .me-line { margin: 0 0 0.55rem; }
+  .me-line { margin: 0 0 0.4rem; }
+  .same { margin: 0 0 0.5rem; font-size: 0.72rem; color: var(--muted); }
   .me-btn { display: inline-flex; align-items: center; gap: 0.35rem; background: var(--panel-2); border: 0; border-radius: 99px; padding: 0.25rem 0.7rem; font-size: 0.85rem; color: var(--ink); cursor: pointer; }
   .me-btn:hover .pen { color: var(--pink); }
   .me-label { font-family: var(--mono); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }

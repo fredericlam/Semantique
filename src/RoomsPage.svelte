@@ -71,7 +71,7 @@
 <section class="rooms-page">
   <button class="back" onclick={onback}><Icon name="arrow-left" /> retour au jeu</button>
   <h2>les rooms</h2>
-  <p class="lead">Même mot de l'heure pour tout le monde, progression en direct, classement entre vous.</p>
+  <p class="lead">Toutes les rooms jouent <strong>le même mot de l'heure</strong> que tout le monde, solo compris. La room ajoute la progression en direct de tes potes et un classement entre vous.</p>
 
   {#if currentRoom}
     <button class="current" onclick={onresume}>
