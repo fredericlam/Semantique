@@ -17,11 +17,11 @@
     <main class="install">
       <img class="app-icon" src="/icons/icon-512.png" alt="" width="132" height="132" />
       <h1>Sémantique</h1>
-      <p class="tagline">un mot secret toutes les heures,<br />directement sur ton écran d'accueil 🌴</p>
+      <p class="tagline">un mot secret toutes les heures,<br />directement sur ton écran d'accueil</p>
 
       <section id="installed" class="card" hidden>
         <span class="tape"></span>
-        <p class="big">✓ C'est installé !</p>
+        <p class="big"><i data-icon="check"></i> C'est installé !</p>
         <p>Tu joues déjà depuis l'app.</p>
       </section>
 
@@ -47,35 +47,35 @@
               <svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
             </span>
           </li>
-          <li><span class="num">3</span><span>Touche <strong>Ajouter</strong>. L'icône 🌴 apparaît avec tes apps.</span></li>
+          <li><span class="num">3</span><span>Touche <strong>Ajouter</strong>. L'icône apparaît avec tes apps.</span></li>
         </ol>
       </section>
 
       <section class="card" data-panel="android" hidden>
         <span class="tape"></span>
-        <button id="install-btn" class="go wide" hidden>📲 installer l'app</button>
+        <button id="install-btn" class="go wide" hidden><i data-icon="download"></i> installer l'app</button>
         <ol class="steps" id="android-steps">
           <li><span class="num">1</span><span>Ouvre le menu <strong>⋮</strong> du navigateur (en haut à droite)</span></li>
           <li><span class="num">2</span><span>Choisis <strong>Installer l'application</strong> ou <strong>Ajouter à l'écran d'accueil</strong></span></li>
-          <li><span class="num">3</span><span>Confirme. L'icône 🌴 apparaît avec tes apps.</span></li>
+          <li><span class="num">3</span><span>Confirme. L'icône apparaît avec tes apps.</span></li>
         </ol>
       </section>
 
       <section class="card" data-panel="desktop" hidden>
         <span class="tape"></span>
-        <p class="big">Scanne avec ton téléphone 📱</p>
+        <p class="big"><i data-icon="smartphone"></i> Scanne avec ton téléphone</p>
         <div id="qr" class="qr" aria-label="QR code vers cette page"></div>
         <p class="muted small" id="url"></p>
-        <button id="install-btn-desktop" class="go wide" hidden>💻 installer sur cet ordinateur</button>
+        <button id="install-btn-desktop" class="go wide" hidden><i data-icon="laptop"></i> installer sur cet ordinateur</button>
       </section>
 
       <ul class="perks">
-        <li>⚡ plein écran, comme une vraie app</li>
-        <li>⏱ un nouveau mot à chaque heure pile</li>
-        <li>🔒 sans compte, sans pub, sans store</li>
+        <li><i data-icon="zap"></i> plein écran, comme une vraie app</li>
+        <li><i data-icon="clock"></i> un nouveau mot à chaque heure pile</li>
+        <li><i data-icon="lock"></i> sans compte, sans pub, sans store</li>
       </ul>
 
-      <a class="go wide play" href="/">jouer maintenant →</a>
+      <a class="go wide play" href="/">jouer maintenant <i data-icon="arrow-right"></i></a>
     </main>
     <script type="module" src="/src/installer.ts"></script>
   </body>

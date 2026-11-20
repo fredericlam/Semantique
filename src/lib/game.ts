@@ -89,14 +89,17 @@ export function computeStats(lang: string, current: number): Stats {
 
 // ------------------------------------------------------------------ hints
 
-/** Next hint target: first a word in the top 1000, then each hint ~4x closer than the best word so far. */
-export function nextHintRank(guesses: Guess[]): number {
+/**
+ * Next hint target: first a word in the top 1000, then each hint ~4x closer than the best word so far.
+ * null when nothing closer than the best guess is left (except the secret itself).
+ */
+export function nextHintRank(guesses: Guess[]): number | null {
   const best = Math.min(...guesses.map((g) => g.rank), Infinity);
-  const target = best > 1000 ? 1000 : Math.max(1, Math.floor(best / 4));
+  if (best <= 1) return null;
   const known = new Set(guesses.map((g) => g.rank));
-  let r = target;
-  while (r > 1 && known.has(r)) r--;
-  return r;
+  let r = best > 1000 ? 1000 : Math.max(1, Math.floor(best / 4));
+  while (r >= 1 && known.has(r)) r--;
+  return r >= 1 ? r : null;
 }
 
 // ------------------------------------------------------------------ grouping guesses into "tracks"

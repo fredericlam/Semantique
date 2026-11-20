@@ -2,6 +2,7 @@
   import { onMount, tick } from "svelte";
   import { isStandalone } from "./lib/pwa.ts";
   import GuessRow from "./GuessRow.svelte";
+  import Icon from "./Icon.svelte";
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, level, temperature } from "./lib/heat.ts";
   import {
@@ -44,6 +45,7 @@
   const byTime = $derived([...game.guesses].sort((a, b) => b.n - a.n));
   const tracks = $derived(lex && view === "tracks" ? buildTracks(lex, game.guesses) : []);
   const over = $derived(game.status !== "playing");
+  const noMoreHints = $derived(nextHintRank(game.guesses) === null);
   const guessed = $derived(new Set(game.guesses.map((g) => g.id)));
   const stats = $derived(meta ? (game.status, computeStats(LANG, meta.current)) : null);
   const remaining = $derived(meta ? Math.max(0, Date.parse(meta.nextAt) - now) : 0);
@@ -61,6 +63,8 @@
   async function openRound(n: number) {
     round = n;
     game = loadState(LANG, n);
+    // drop duplicates left by older versions
+    game.guesses = game.guesses.filter((g, i, all) => all.findIndex((o) => o.word === g.word) === i);
     last = game.guesses.find((g) => g.n === game.guesses.length) ?? null;
     feedback = null;
     top = [];
@@ -99,6 +103,7 @@
   }
 
   function add(g: Omit<Guess, "input" | "n">, typed: string, hint = false) {
+    if (game.guesses.some((o) => o.id === g.id)) return;
     const guess: Guess = { ...g, input: typed && typed !== g.word ? typed : "", n: game.guesses.length + 1, ...(hint ? { hint } : {}) };
     game.guesses.push(guess);
     last = guess;
@@ -149,10 +154,11 @@
   }
 
   async function hint() {
-    if (busy || over) return;
+    const target = nextHintRank(game.guesses);
+    if (busy || over || target === null) return;
     busy = true;
     try {
-      add(await fetchHint(LANG, round, nextHintRank(game.guesses)), "", true);
+      add(await fetchHint(LANG, round, target), "", true);
     } finally {
       busy = false;
     }
@@ -201,10 +207,10 @@
       {#if meta}<span class="day">mot de {roundLabel(round)}</span>{/if}
     </div>
     <div class="header-actions">
-      {#if meta}<span class="timer" title="Prochain mot dans">⏱ {countdown}</span>{/if}
-      {#if !isStandalone()}<a class="icon" href="/installer/" aria-label="Installer l'app" title="Installer l'app">📲</a>{/if}
-      <button class="icon" onclick={() => statsDialog.showModal()} aria-label="Statistiques">📊</button>
-      <button class="icon" onclick={() => helpDialog.showModal()} aria-label="Comment jouer">?</button>
+      {#if meta}<span class="timer" title="Prochain mot dans"><Icon name="clock" /> {countdown}</span>{/if}
+      {#if !isStandalone()}<a class="icon" href="/installer/" aria-label="Installer l'app" title="Installer l'app"><Icon name="smartphone" size="1.3rem" /></a>{/if}
+      <button class="icon" onclick={() => statsDialog.showModal()} aria-label="Statistiques"><Icon name="chart" size="1.3rem" /></button>
+      <button class="icon" onclick={() => helpDialog.showModal()} aria-label="Comment jouer"><Icon name="question" size="1.3rem" /></button>
     </div>
   </header>
 
@@ -215,7 +221,7 @@
   {:else}
     {#if newWordReady || round !== meta.current}
       <button class="banner" onclick={goToLatest}>
-        🌴 {newWordReady ? "Nouveau mot dispo !" : "Le mot de l'heure t'attend"} <strong>jouer →</strong>
+        <Icon name="sparkles" /> {newWordReady ? "Nouveau mot dispo !" : "Le mot de l'heure t'attend"} <strong>jouer <Icon name="arrow-right" /></strong>
       </button>
     {/if}
 
@@ -259,7 +265,7 @@
         <div class="end polaroid" class:won={game.status === "won"}>
           <span class="tape" aria-hidden="true"></span>
           {#if game.status === "won"}
-            <p class="kicker">🎯 trouvé !</p>
+            <p class="kicker"><Icon name="trophy" color="var(--pink)" /> trouvé !</p>
             <p class="secret">{top[0]?.word ?? best?.word}</p>
             <p>en <strong>{tries}</strong> essai{tries > 1 ? "s" : ""}{hints ? ` · ${hints} indice${hints > 1 ? "s" : ""}` : ""}</p>
           {:else}
@@ -268,18 +274,18 @@
             <p>ton meilleur : <strong>{best?.word ?? "aucun"}</strong>{best ? ` (n°${best.rank})` : ""}</p>
           {/if}
           <div class="actions">
-            <button class="go wide" onclick={share}>{copied ? "copié ✓" : "partager"}</button>
-            <span class="muted small">prochain mot dans <strong class="mono">{countdown}</strong> ⏱</span>
+            <button class="go wide" onclick={share}><Icon name={copied ? "check" : "share"} /> {copied ? "copié" : "partager"}</button>
+            <span class="muted small">prochain mot dans <strong class="mono">{countdown}</strong></span>
           </div>
         </div>
       {/if}
 
       {#if game.guesses.length}
         <div class="toolbar">
-          <span class="count"><strong>{tries}</strong> essai{tries > 1 ? "s" : ""}{#if hints} · {hints} 💡{/if}</span>
+          <span class="count"><strong>{tries}</strong> essai{tries > 1 ? "s" : ""}{#if hints} · {hints} <Icon name="lightbulb" />{/if}</span>
           {#if !over}
-            <button class="pill" onclick={hint} disabled={busy} title="Révèle un mot plus proche que ton meilleur essai">💡 indice</button>
-            <button class="pill" class:danger={confirmGiveUp} onclick={giveUp}>{confirmGiveUp ? "sûr ? re-clique" : "abandonner"}</button>
+            <button class="pill" onclick={hint} disabled={busy || noMoreHints} title={noMoreHints ? "Tu as déjà le mot le plus proche : à toi de trouver !" : "Révèle un mot plus proche que ton meilleur essai"}><Icon name="lightbulb" /> {noMoreHints ? "plus d'indice" : "indice"}</button>
+            <button class="pill" class:danger={confirmGiveUp} onclick={giveUp}><Icon name="flag" /> {confirmGiveUp ? "sûr ? re-clique" : "abandonner"}</button>
           {/if}
         </div>
       {/if}
@@ -298,7 +304,7 @@
           {#each tracks as t, i (t.leader.id)}
             <details class="track" open={t.leader.rank <= 2000} style:--tilt="{i % 2 ? 0.6 : -0.5}deg">
               <summary>
-                <span class="track-name">{level(t.leader.rank).emoji} {t.leader.word}</span>
+                <span class="track-name"><Icon name={level(t.leader.rank).icon} color={level(t.leader.rank).color} /> {t.leader.word}</span>
                 <span class="muted small mono">{t.members.length} mot{t.members.length > 1 ? "s" : ""} · n°{t.leader.rank}</span>
               </summary>
               <ul class="list">
@@ -318,7 +324,7 @@
       <div class="note">
         <span class="tape" aria-hidden="true"></span>
         <p><strong>Trouve le mot secret.</strong> Chaque essai te dit à quel point tu en es proche <em>par le sens</em>.</p>
-        <p class="scale">🧊 🌊 🌴 ☀️ 🥵 🔥 🎯</p>
+        <p class="scale">{#each [...LEVELS].reverse() as l}<Icon name={l.icon} color={l.color} size="1.6rem" />{/each}</p>
         <p class="muted">Commence large (un animal, une émotion, un objet…), puis resserre autour des pistes chaudes.</p>
       </div>
     {/if}
@@ -346,13 +352,13 @@
   <p><strong>Un nouveau mot secret toutes les heures.</strong> Chaque mot proposé reçoit une <strong>température</strong> : plus il est proche du secret par le sens, plus il est chaud. 100° = trouvé. Le petit <strong>n°</strong> à côté, c'est son rang (n°1 = le plus proche).</p>
   <ul class="legend">
     {#each LEVELS as l, i}
-      <li><span class="emoji">{l.emoji}</span> <strong>{l.label}</strong> <span class="muted mono small">{i === 0 ? "100°" : l.maxRank === Infinity ? `< ${temperature(LEVELS[i - 1].maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°` : `≥ ${temperature(l.maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°`}</span></li>
+      <li><span class="emoji"><Icon name={l.icon} color={l.color} size="1.3rem" /></span> <strong>{l.label}</strong> <span class="muted mono small">{i === 0 ? "100°" : l.maxRank === Infinity ? `< ${temperature(LEVELS[i - 1].maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°` : `≥ ${temperature(l.maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°`}</span></li>
     {/each}
   </ul>
   <p>Zéro piège d'orthographe : <em>chevaux</em> = <em>cheval</em>, <em>mangeait</em> = <em>manger</em>, accents facultatifs.</p>
-  <p><strong>Pistes</strong> regroupe tes essais par thème. Coincé ? <strong>💡 indice</strong> te donne un mot plus proche que ton meilleur.</p>
-  <p>📲 <a href="/installer/">Installe-la sur ton téléphone</a>, comme une vraie app.</p>
-  <form method="dialog"><button class="go wide">c'est parti 🌴</button></form>
+  <p><strong>Pistes</strong> regroupe tes essais par thème. Coincé ? <strong><Icon name="lightbulb" /> indice</strong> te donne un mot plus proche que ton meilleur.</p>
+  <p><Icon name="smartphone" /> <a href="/installer/">Installe-la sur ton téléphone</a>, comme une vraie app.</p>
+  <form method="dialog"><button class="go wide">c'est parti <Icon name="gamepad" /></button></form>
 </dialog>
 
 <dialog bind:this={statsDialog} onclick={(e) => e.target === statsDialog && statsDialog.close()}>
@@ -396,6 +402,7 @@
   }
   .header-actions { display: flex; gap: 0.5rem; align-items: center; }
   .timer {
+    display: inline-flex; align-items: center; gap: 0.3rem;
     font-family: var(--mono); font-size: 0.8rem; font-weight: 700; padding: 0.25rem 0.55rem; border-radius: 99px;
     background: var(--ink); color: var(--panel); white-space: nowrap;
   }
@@ -407,6 +414,7 @@
   }
   @keyframes pulse { 50% { transform: scale(1.015); } }
   .icon {
+    display: grid; place-items: center;
     width: 2.6rem; height: 2.6rem; border-radius: 50%; border: 2px solid var(--line); background: var(--panel);
     font-weight: 800; font-size: 1.05rem; box-shadow: var(--shadow-sm);
   }
@@ -471,7 +479,7 @@
     rotate: -0.8deg; box-shadow: var(--shadow); margin-top: 14px;
   }
   .note p { margin: 0 0 0.7rem; line-height: 1.45; }
-  .scale { font-size: 1.4rem; letter-spacing: 0.25em; }
+  .scale { display: flex; gap: 0.6rem; justify-content: center; padding: 0.2rem 0; }
   .tape {
     position: absolute; top: -12px; left: 50%; width: 96px; height: 24px; translate: -50% 0; rotate: -3deg;
     background: repeating-linear-gradient(45deg, var(--tape) 0 8px, color-mix(in srgb, var(--tape) 70%, white) 8px 16px);
