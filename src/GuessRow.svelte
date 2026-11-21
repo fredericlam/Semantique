@@ -18,6 +18,7 @@
   <span class="word">
     <span class="w">{g.word}</span>
     {#if g.hint}<span class="tag">indice</span>{/if}
+    {#if g.by}<span class="by">{g.by}</span>{/if}
     {#if g.input}<span class="input">← {g.input}</span>{/if}
   </span>
   <span class="label"><span class="emoji" aria-hidden="true">{lv.emoji}</span><span class="lt">{lv.label}</span></span>
@@ -66,6 +67,7 @@
   .word { min-width: 0; display: flex; align-items: baseline; gap: 0.35rem; flex-wrap: wrap; }
   .w { font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; }
   .input { color: var(--muted); font-size: 0.78rem; }
+  .by { font-size: 0.68rem; font-weight: 700; color: var(--pink); background: var(--pink-soft); border-radius: 99px; padding: 0 0.45rem; }
   .tag {
     font-family: var(--mono); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em;
     background: var(--teal); color: #10233a; padding: 0.05rem 0.4rem; border-radius: 4px; transform: rotate(-3deg);

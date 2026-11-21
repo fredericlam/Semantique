@@ -8,6 +8,7 @@ export interface Guess {
   rank: number;
   n: number; // order of entry, 1-based
   hint?: boolean;
+  by?: string; // author (room in collab mode)
 }
 
 export interface GameState {

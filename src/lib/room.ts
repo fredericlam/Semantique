@@ -11,11 +11,13 @@ export interface PlayerRound {
 }
 
 export type Visibility = "public" | "private";
+export type Mode = "defi" | "collab";
 
 export interface Snapshot {
   code: string;
   name: string;
   visibility: Visibility;
+  mode: Mode;
   level: string;
   owner: string | null;
   round: number;
@@ -29,7 +31,7 @@ export interface Session {
 }
 
 type Entry = Omit<Guess, "input" | "n">;
-export type RoomGuess = Entry & { n: number; hint: boolean };
+export type RoomGuess = Entry & { n: number; hint: boolean; by?: string };
 
 export const ROOM_ERRORS: Record<string, string> = {
   not_found: "Cette room n'existe pas (ou plus).",
@@ -78,6 +80,7 @@ export const createRoom = (lang: string, name: string, visibility: Visibility, l
   call<{ code: string }>(lang, "", { name, visibility, level });
 export const roomRename = (lang: string, s: Session, name: string) =>
   call<{ token: string; name: string }>(lang, `/${s.code}/rename`, { token: s.token, name });
+export const roomSetMode = (lang: string, s: Session, mode: Mode) => call<{ ok: true }>(lang, `/${s.code}/mode`, { token: s.token, mode });
 export const roomResume = (lang: string, s: Session) => call<{ ok: true }>(lang, `/${s.code}/resume`, { token: s.token });
 export const roomSetVisibility = (lang: string, s: Session, visibility: Visibility) =>
   call<{ ok: true }>(lang, `/${s.code}/visibility`, { token: s.token, visibility });
@@ -169,7 +172,12 @@ export const lastName = (): string => Object.values(saved()).at(-1)?.name ?? "";
 export function connect(
   lang: string,
   s: Session,
-  on: { snapshot: (snap: Snapshot) => void; event: (text: string) => void; status: (online: boolean) => void },
+  on: {
+    snapshot: (snap: Snapshot) => void;
+    event: (text: string) => void;
+    status: (online: boolean) => void;
+    guess?: (round: number, guess: RoomGuess) => void; // collab mode: someone proposed a word
+  },
 ): () => void {
   let ws: WebSocket | null = null;
   let closed = false;
@@ -189,6 +197,7 @@ export function connect(
       const msg = JSON.parse(e.data);
       if (msg.type === "snapshot" && msg.snapshot) on.snapshot(msg.snapshot);
       if (msg.type === "event") on.event(msg.text);
+      if (msg.type === "guess") on.guess?.(msg.round, msg.guess);
     };
     ws.onclose = () => {
       clearInterval(ping);

@@ -215,6 +215,11 @@ export function createApp() {
     return reply(c, await room(c).resume(token));
   });
 
+  app.post("/:lang/rooms/:code/mode", async (c) => {
+    const { token, mode } = await c.req.json<{ token: string; mode: "defi" | "collab" }>();
+    return reply(c, await room(c).setMode(token, mode));
+  });
+
   app.post("/:lang/rooms/:code/visibility", async (c) => {
     const { token, visibility } = await c.req.json<{ token: string; visibility: "public" | "private" }>();
     return reply(c, await room(c).setVisibility(token, visibility));

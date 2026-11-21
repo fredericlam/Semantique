@@ -12,6 +12,8 @@ const POINTS = [5, 3, 2]; // 1st, 2nd, 3rd to find; then 1; +1 without hints
 
 export type RoomError = { error: "not_found" | "taken" | "bad_name" | "auth" | "unknown_word" | "finished" | "no_hint" | "locked" | "no_data" | "forbidden" | "not_given_up" };
 export type Visibility = "public" | "private";
+/** défi: everyone plays alone, words hidden; collab: one shared game, everyone sees every word. */
+export type Mode = "defi" | "collab";
 
 export interface PlayerRound {
   status: "playing" | "won" | "gaveup";
@@ -26,6 +28,7 @@ export interface Snapshot {
   code: string;
   name: string;
   visibility: Visibility;
+  mode: Mode;
   level: string;
   owner: string | null; // display name of the creator, who can change the visibility
   round: number;
@@ -35,6 +38,7 @@ export interface Snapshot {
 export interface RoomGuess extends Entry {
   n: number;
   hint: boolean;
+  by?: string; // author, in collab mode
 }
 
 const nameKey = (name: string) => name.normalize("NFC").trim().toLocaleLowerCase("fr");
@@ -121,12 +125,36 @@ export class Room extends DurableObject<Env> {
     }
     const ownerKey = this.meta("owner");
     const owner = ownerKey ? (this.sql.exec<{ name: string }>("SELECT name FROM players WHERE key = ?", ownerKey).toArray()[0]?.name ?? null) : null;
-    return { code, name: this.meta("name") || `Room ${code}`, visibility: this.visibility(), level: this.level(L), owner, round, players };
+    return { code, name: this.meta("name") || `Room ${code}`, visibility: this.visibility(), mode: this.mode(), level: this.level(L), owner, round, players };
   }
 
   /** Rooms created before levels existed play the default (adult) level. */
   private level(L: Lang): string {
     return gameData(this.env.DATA).level(L, this.meta("level"));
+  }
+
+  private mode(): Mode {
+    return this.meta("mode") === "collab" ? "collab" : "defi";
+  }
+
+  /** In collab mode: has anyone in the room found this round's word? */
+  private teamWon(round: number): boolean {
+    return this.sql.exec("SELECT 1 FROM results WHERE round = ? AND status = 'won' LIMIT 1", round).toArray().length > 0;
+  }
+
+  /** Every word proposed in the room this round (collab view), first proposal wins, with its author. */
+  private teamGuesses(round: number): RoomGuess[] {
+    const rows = this.sql.exec<{ id: number; word: string; rank: number; cos: number; hint: number; at: number; name: string }>(
+      `SELECT g.id, g.word, g.rank, g.cos, g.hint, g.at, p.name FROM guesses g JOIN players p ON p.key = g.player
+       WHERE g.round = ? ORDER BY g.at`, round).toArray();
+    const seen = new Set<number>();
+    const out: RoomGuess[] = [];
+    for (const g of rows) {
+      if (seen.has(g.id)) continue;
+      seen.add(g.id);
+      out.push({ id: g.id, word: g.word, rank: g.rank, cos: g.cos, hint: g.hint === 1, n: out.length + 1, by: g.name });
+    }
+    return out;
   }
 
   private visibility(): Visibility {
@@ -161,6 +189,13 @@ export class Room extends DurableObject<Env> {
       try { ws.send(msg); } catch {}
     }
     await this.publish(snap);
+  }
+
+  private send(msg: unknown) {
+    const s = JSON.stringify(msg);
+    for (const ws of this.ctx.getWebSockets()) {
+      try { ws.send(s); } catch {}
+    }
   }
 
   private event(text: string) {
@@ -217,6 +252,8 @@ export class Room extends DurableObject<Env> {
     const L = await this.lang();
     if (!me || !L) return { error: "auth" };
     const n = round ?? roundAt(L.meta);
+    if (this.mode() === "collab")
+      return { round: n, guesses: this.teamGuesses(n), status: this.teamWon(n) ? "won" : this.result(n, me.key)?.status ?? "playing" };
     const guesses = this.sql.exec<{ id: number; word: string; rank: number; cos: number; hint: number; n: number }>(
       "SELECT id, word, rank, cos, hint, n FROM guesses WHERE round = ? AND player = ? ORDER BY n", n, me.key).toArray()
       .map((g) => ({ ...g, hint: g.hint === 1 }));
@@ -228,9 +265,12 @@ export class Room extends DurableObject<Env> {
     const L = await this.lang();
     if (!me || !L) return { error: "auth" };
     const round = roundAt(L.meta);
+    const collab = this.mode() === "collab";
     const res = this.result(round, me.key);
-    if (res && res.status !== "playing") return { error: "finished" };
-    const ranks = this.sql.exec<{ rank: number }>("SELECT rank FROM guesses WHERE round = ? AND player = ?", round, me.key).toArray().map((r) => r.rank);
+    if (res?.status === "won" || (!collab && res && res.status !== "playing") || (collab && this.teamWon(round))) return { error: "finished" };
+    const ranks = collab
+      ? this.teamGuesses(round).map((g) => g.rank)
+      : this.sql.exec<{ rank: number }>("SELECT rank FROM guesses WHERE round = ? AND player = ?", round, me.key).toArray().map((r) => r.rank);
     const r = await gameData(this.env.DATA).round(L, round, this.level(L));
     if (!r) return { error: "no_data" };
     const picked = pick(L, ranks);
@@ -239,6 +279,10 @@ export class Room extends DurableObject<Env> {
     const id = hint ? r.order[picked] : picked;
     const e = gameData(this.env.DATA).entry(L, r, id);
 
+    if (collab) {
+      const already = this.teamGuesses(round).find((g) => g.id === id);
+      if (already) return already;
+    }
     const dup = this.sql.exec<{ n: number; hint: number }>("SELECT n, hint FROM guesses WHERE round = ? AND player = ? AND id = ?", round, me.key, id).toArray()[0];
     if (dup) return { ...e, n: dup.n, hint: dup.hint === 1 };
 
@@ -253,12 +297,19 @@ export class Room extends DurableObject<Env> {
         best = MIN(best, excluded.best), finished = excluded.finished`,
       round, me.key, won ? "won" : "playing", hint ? 0 : 1, hint ? 1 : 0, e.rank, won ? Date.now() : null);
     this.touch();
+    const out: RoomGuess = collab
+      ? { ...e, n: this.teamGuesses(round).length, hint, by: me.name }
+      : { ...e, n, hint };
+    if (collab) this.send({ type: "guess", round, guess: out }); // everyone sees the new word right away
     await this.broadcast();
     if (won) {
-      const place = this.result(round, me.key)?.place ?? 1;
-      this.event(place === 1 ? `🎯 ${me.name} a trouvé en premier !` : `🎯 ${me.name} a trouvé (${place}ᵉ)`);
+      if (collab) this.event(`🎯 ${me.name} a trouvé le mot pour toute l'équipe !`);
+      else {
+        const place = this.result(round, me.key)?.place ?? 1;
+        this.event(place === 1 ? `🎯 ${me.name} a trouvé en premier !` : `🎯 ${me.name} a trouvé (${place}ᵉ)`);
+      }
     }
-    return { ...e, n, hint };
+    return out;
   }
 
   guess(token: string, word: string) {
@@ -321,6 +372,19 @@ export class Room extends DurableObject<Env> {
     return { ok: true };
   }
 
+  /** Anyone in the room can switch between défi and collaboratif, effective immediately. */
+  async setMode(token: string, mode: Mode): Promise<{ ok: true } | RoomError> {
+    const me = this.player(token);
+    if (!me) return { error: "auth" };
+    const next: Mode = mode === "collab" ? "collab" : "defi";
+    if (next === this.mode()) return { ok: true };
+    this.setMeta("mode", next);
+    this.touch();
+    await this.broadcast();
+    this.event(next === "collab" ? `🤝 ${me.name} passe la room en mode collaboratif` : `🏆 ${me.name} passe la room en mode défi`);
+    return { ok: true };
+  }
+
   async setVisibility(token: string, visibility: Visibility): Promise<{ ok: true } | RoomError> {
     const me = this.player(token);
     if (!me) return { error: "auth" };
@@ -339,7 +403,8 @@ export class Room extends DurableObject<Env> {
     const me = this.player(token);
     const L = await this.lang();
     if (!me || !L) return { error: "auth" };
-    if (round >= roundAt(L.meta) && this.result(round, me.key)?.status !== "won") return { error: "locked" };
+    const unlocked = this.result(round, me.key)?.status === "won" || (this.mode() === "collab" && this.teamWon(round));
+    if (round >= roundAt(L.meta) && !unlocked) return { error: "locked" };
     const r = await gameData(this.env.DATA).round(L, round, this.level(L));
     if (!r) return { error: "no_data" };
     const players = this.sql.exec<{ key: string; name: string }>("SELECT key, name FROM players ORDER BY joined").toArray().map((p) => ({

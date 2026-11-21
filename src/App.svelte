@@ -11,7 +11,7 @@
   import HistoryList from "./HistoryList.svelte";
   import {
     cleanCode, connect, createRoom, joinRoom, lastName, lastRoom, roomGiveUp, roomGuess, roomHint, roomMine, roomResume,
-    roomReveal, roomSetVisibility, roomState, savedSession, saveSession, rememberRoom, myRooms, roomRename, type RoomGuess, type Session, type Snapshot, type Visibility,
+    roomReveal, roomSetVisibility, roomState, savedSession, saveSession, rememberRoom, myRooms, roomRename, roomSetMode, type RoomGuess, type Session, type Snapshot, type Visibility,
   } from "./lib/room.ts";
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, level, temperature } from "./lib/heat.ts";
@@ -72,6 +72,8 @@
   let joinError = $state("");
   let joinBusy = $state(false);
   let disconnect: (() => void) | null = null;
+  /** Collaborative room: one shared game, teal colour code; défi keeps the pink one. */
+  const collab = $derived(!!session && snap?.mode === "collab");
   let pastWords = $state<{ round: number; word: string; found: number }[]>([]);
   let foundStats = $state<FoundStats | null>(null);
 
@@ -213,14 +215,7 @@
     scrollTo({ top: 0 });
     snap = await roomState(LANG, s.code);
     rememberRoom(s.code, { roomName: snap.name, level: snap.level });
-    disconnect = connect(LANG, s, {
-      snapshot: (x) => {
-        snap = x;
-        rememberRoom(x.code, { roomName: x.name, level: x.level });
-      },
-      event: toast,
-      status: (v) => (connected = v),
-    });
+    disconnect = connect(LANG, s, liveHandlers());
     meta = await fetchMeta(LANG);
     await openRound(meta.current);
   }
@@ -325,6 +320,33 @@
     }
   }
 
+  /** Live room feed: snapshots, notifications, and (collab) the words others propose. */
+  function liveHandlers() {
+    return {
+      snapshot: (x: Snapshot) => {
+        const modeChanged = snap && snap.code === x.code && snap.mode !== x.mode;
+        snap = x;
+        rememberRoom(x.code, { roomName: x.name, level: x.level });
+        if (modeChanged && meta) openRound(round); // switch between my own words and the shared ones
+      },
+      event: toast,
+      status: (v: boolean) => (connected = v),
+      guess: (r: number, g: RoomGuess) => {
+        if (!collab || r !== round || game.guesses.some((o) => o.id === g.id)) return;
+        add(g, "", g.hint, true);
+      },
+    };
+  }
+
+  async function setMode(mode: "defi" | "collab") {
+    if (!session || snap?.mode === mode) return;
+    try {
+      await roomSetMode(LANG, session, mode);
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  }
+
   /** New player name in the current room; reconnects the live feed under the new identity. */
   async function renameMe(name: string): Promise<string | null> {
     if (!session) return null;
@@ -333,11 +355,7 @@
       session = { ...session, name: res.name };
       saveSession(session);
       disconnect?.();
-      disconnect = connect(LANG, session, {
-        snapshot: (x) => { snap = x; rememberRoom(x.code, { roomName: x.name, level: x.level }); },
-        event: toast,
-        status: (v) => (connected = v),
-      });
+      disconnect = connect(LANG, session, liveHandlers());
       return null;
     } catch (e) {
       return (e as Error).message;
@@ -391,7 +409,8 @@
     saveState(LANG, soloLevel, round, $state.snapshot(game) as GameState);
   }
 
-  function add(g: Omit<Guess, "input" | "n">, typed: string, hint = false) {
+  /** fromTeammate: a word proposed by someone else in a collab room (not counted as my find). */
+  function add(g: Omit<Guess, "input" | "n">, typed: string, hint = false, fromTeammate = false) {
     if (game.guesses.some((o) => o.id === g.id)) return;
     const guess: Guess = { ...g, input: typed && typed !== g.word ? typed : "", n: game.guesses.length + 1, ...(hint ? { hint } : {}) };
     if ("n" in g && typeof g.n === "number") guess.n = g.n;
@@ -399,7 +418,7 @@
     last = guess;
     if (guess.rank === 0) {
       finish("won");
-      reportFound(LANG, playLevel, round, guess.word).then((s) => s && (foundStats = s));
+      if (!fromTeammate) reportFound(LANG, playLevel, round, guess.word).then((s) => s && (foundStats = s));
     }
     persist();
   }
@@ -523,7 +542,7 @@
 </script>
 
 
-<div class="page">
+<div class="page" class:collab>
   <header>
     <div class="sun" aria-hidden="true"></div>
     <svg class="palm" viewBox="0 0 64 96" aria-hidden="true"><path d="M33 94c-2-22 0-44 4-60" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M37 34c-10-12-24-12-34-4 12-2 22 0 34 4zM37 34c4-14 16-22 26-20-12 4-20 10-26 20zM37 34c-14 0-24 8-28 18 8-8 18-12 28-18zM37 34c12-4 22 2 26 10-8-6-16-8-26-10zM37 34c-2-12-10-22-20-26 10 8 16 16 20 26z" fill="currentColor"/></svg>
@@ -565,7 +584,7 @@
   {:else}
     {#if session && snap}
       <button class="room-back" onclick={leaveRoom}><Icon name="arrow-left" /> mes rooms</button>
-      <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} ontogglevisibility={toggleVisibility} onrename={renameMe} />
+      <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} ontogglevisibility={toggleVisibility} onrename={renameMe} onmode={setMode} />
     {:else}
       {#if SHOW_LEVELS}
       <div class="levels" role="radiogroup" aria-label="Niveau de difficulté">
@@ -1036,6 +1055,8 @@
   .levels button { flex: 1; border: 0; background: none; border-radius: 99px; padding: 0.4rem 0.3rem; font-weight: 700; font-size: 0.88rem; color: var(--muted); white-space: nowrap; }
   .levels button.on { background: var(--pink); color: white; box-shadow: var(--shadow-sm); }
   .levels.in-dialog { margin: 0; }
+  /* collaborative room: the whole room screen switches from pink (défi) to teal */
+  .page.collab { --pink: #0e9f9a; --pink-soft: #c8f2ee; --sun-b: #2dd4bf; }
   .found-line { margin: 0 0 6px; font-size: 0.78rem; color: var(--muted); }
   .found-line strong { color: var(--pink); font-family: var(--mono); }
   .found-line .sep { margin: 0 0.25rem; }

@@ -4,8 +4,9 @@
   import LevelTag from "./LevelTag.svelte";
   import { SHOW_LEVELS } from "./lib/game.ts";
 
-  let { snap, me, vocabSize, connected, onshare, ontogglevisibility, onrename }: {
+  let { snap, me, vocabSize, connected, onshare, ontogglevisibility, onrename, onmode }: {
     snap: Snapshot; me: string; vocabSize: number; connected: boolean; onshare: () => void; ontogglevisibility: () => void;
+    onmode: (mode: "defi" | "collab") => void;
     onrename: (name: string) => Promise<string | null>; // resolves to an error message, or null when done
   } = $props();
 
@@ -83,7 +84,19 @@
     {/if}
   </div>
 
-  <p class="same">🌍 mot de l'heure commun à tous, solo et rooms</p>
+  <div class="modes" role="radiogroup" aria-label="Mode de jeu de la room">
+    <button role="radio" aria-checked={snap.mode === "defi"} class="m-defi" class:on={snap.mode === "defi"} onclick={() => onmode("defi")}>
+      🏆 défi <small>chacun pour soi</small>
+    </button>
+    <button role="radio" aria-checked={snap.mode === "collab"} class="m-collab" class:on={snap.mode === "collab"} onclick={() => onmode("collab")}>
+      🤝 collaboratif <small>mots partagés</small>
+    </button>
+  </div>
+  <p class="same">
+    {#if snap.mode === "collab"}🤝 une partie commune : tout le monde voit les mots de tous, le premier qui trouve fait gagner l'équipe.
+    {:else}🏆 chacun cherche de son côté, les mots des autres restent cachés.{/if}
+    Même mot de l'heure que tout le monde.
+  </p>
   <div class="seg" role="tablist">
     <button role="tab" aria-selected={tab === "live"} onclick={() => (tab = "live")}>cette heure · {found}/{snap.players.length} 🎯</button>
     <button role="tab" aria-selected={tab === "points"} onclick={() => (tab = "points")}>classement</button>
@@ -165,6 +178,16 @@
   .pos { width: 1.6rem; text-align: center; font-family: var(--mono); font-weight: 700; }
   .me-line { margin: 0 0 0.4rem; }
   .same { margin: 0 0 0.5rem; font-size: 0.72rem; color: var(--muted); }
+  .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 0.45rem; }
+  .modes button {
+    display: grid; gap: 0.05rem; border: 2px solid var(--line); border-radius: 12px; padding: 0.4rem 0.5rem;
+    background: var(--panel); color: var(--ink); font-weight: 800; font-size: 0.88rem; text-align: center; opacity: 0.6;
+  }
+  .modes button small { font-weight: 500; font-size: 0.68rem; color: var(--muted); }
+  .modes button.on { opacity: 1; color: white; box-shadow: var(--shadow-sm); }
+  .modes button.on small { color: rgb(255 255 255 / 0.85); }
+  .m-defi.on { background: linear-gradient(100deg, #ff9f5a, #ff3d8b); }
+  .m-collab.on { background: linear-gradient(100deg, #2dd4bf, #0e9f9a); }
   .me-btn { display: inline-flex; align-items: center; gap: 0.35rem; background: var(--panel-2); border: 0; border-radius: 99px; padding: 0.25rem 0.7rem; font-size: 0.85rem; color: var(--ink); cursor: pointer; }
   .me-btn:hover .pen { color: var(--pink); }
   .me-label { font-family: var(--mono); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
