@@ -1,7 +1,7 @@
 {
-  "name": "Sémantique — un mot toutes les heures",
+  "name": "Sémantique — un mot toutes les 3 heures",
   "short_name": "Sémantique",
-  "description": "Trouve le mot secret grâce à la température : plus tu es proche par le sens, plus c'est chaud. Un nouveau mot toutes les heures.",
+  "description": "Trouve le mot secret grâce à la température : plus tu es proche par le sens, plus c'est chaud. Un nouveau mot toutes les 3 heures.",
   "lang": "fr",
   "id": "/",
   "start_url": "/?source=app",

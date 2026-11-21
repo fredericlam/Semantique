@@ -20,7 +20,7 @@
 
 {#if items.length}
   <section class="history">
-    <h2>les heures précédentes</h2>
+    <h2>les mots précédents</h2>
     <ul>
       {#each shown as it (it.round)}
         {@const s = status?.(it.round)}
@@ -47,7 +47,7 @@
       {/each}
     </ul>
     {#if items.length > 6}
-      <button class="more" onclick={() => (open = !open)}>{open ? "voir moins" : `voir les ${items.length} dernières heures`}</button>
+      <button class="more" onclick={() => (open = !open)}>{open ? "voir moins" : `voir les ${items.length} derniers mots`}</button>
     {/if}
   </section>
 {/if}

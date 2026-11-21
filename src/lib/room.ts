@@ -40,7 +40,7 @@ export const ROOM_ERRORS: Record<string, string> = {
   auth: "Session expirée : rejoins la room à nouveau.",
   finished: "Tu as déjà fini cette manche.",
   no_hint: "Plus d'indice : tu as déjà le mot le plus proche.",
-  locked: "Le mot sera révélé à la fin de l'heure.",
+  locked: "Le mot sera révélé quand il changera (toutes les 3 heures).",
   forbidden: "Seul·e le créateur ou la créatrice de la room peut faire ça.",
   not_given_up: "Tu n'as pas abandonné cette manche.",
 };

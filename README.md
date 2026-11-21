@@ -2,7 +2,7 @@
 
 🌐 **En ligne : https://semantique.flaaam.workers.dev**
 
-Trouve le mot secret grâce à la **température** : plus ton mot est proche du secret *par le sens*, plus il est chaud (100° = trouvé). Un **nouveau mot toutes les heures** de 9h à minuit, puis toutes les 3 heures la nuit (0h, 3h, 6h). On peut jouer seul ou entre amis dans une **room**.
+Trouve le mot secret grâce à la **température** : plus ton mot est proche du secret *par le sens*, plus il est chaud (100° = trouvé). Un **nouveau mot toutes les 3 heures** (0h, 3h, 6h … 21h). On peut jouer seul ou entre amis dans une **room**.
 
 Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantle](https://semantle.com/), avec une ergonomie revue.
 
@@ -14,14 +14,14 @@ Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantl
 |---|---|
 | Données françaises (vocabulaire, formes, vecteurs, planning) | ✅ fait |
 | Jeu solo : température, saisie tolérante, indices, pistes, partage | ✅ fait |
-| Un mot par heure, compte à rebours, archives (`?manche=N`) | ✅ fait |
+| Un mot toutes les 3 heures, compte à rebours, archives (`?manche=N`) | ✅ fait |
 | Design rétro Miami, mobile d'abord, mode sombre | ✅ fait |
 | App installable (PWA) + page `/installer/` + icône | ✅ fait |
 | API sur Cloudflare Workers (Hono) + données sur R2 | ✅ en ligne |
 | **Rooms** : serveur (Durable Object) | ✅ en ligne |
 | **Rooms** : interface (rejoindre, tableau en direct, classement, parcours) | ✅ fait, testé en local à 3 joueurs |
 | Mise en ligne sur Cloudflare | ✅ https://semantique.flaaam.workers.dev |
-| Niveaux kid / teen / adulte (un mot secret par niveau et par heure) | ✅ côté serveur et données ; **masqués dans l'interface** (tout le monde en adulte, `SHOW_LEVELS` dans `src/lib/game.ts`) |
+| Niveaux kid / teen / adulte (un mot secret par niveau et par créneau) | ✅ côté serveur et données ; **masqués dans l'interface** (tout le monde en adulte, `SHOW_LEVELS` dans `src/lib/game.ts`) |
 | Thème clair / sombre / auto (pied de page) | ✅ |
 | Version anglaise | 🧩 préparée, pas branchée |
 | Classement général hors rooms (D1) | 💤 reporté |
@@ -30,26 +30,26 @@ Le jeu s'inspire de [Cémantix](https://cemantix.certitudes.org/) et de [Semantl
 
 - **Température en °C** calculée à partir du rang du mot, ce qui donne une progression lisible dès le premier essai. Le petit **n°** affiché à côté est le rang (n°1 = le mot le plus proche).
 - **Saisie tolérante** : *chevaux* compte comme *cheval*, *mangeait* comme *manger*. Les accents sont facultatifs (« peche » propose aussi pêche et pécher), et une faute de frappe propose des corrections.
-- **3 niveaux**, chacun avec son propre mot de l'heure :
+- **3 niveaux**, chacun avec son propre mot :
   - 🧒 **kid** (7–11 ans) : noms concrets du quotidien, choisis par proximité de sens avec des thèmes d'enfants (animaux, nourriture, école, jouets…), avec des listes noires dédiées ;
   - 🧑 **teen** : noms, verbes et adjectifs courants ;
   - 🧔 **adulte** : mots plus rares.
 
   Les mots acceptés sont les mêmes pour tous. En solo, le niveau se choisit sous l'en-tête et l'app s'en souvient ; une room a un niveau fixé à sa création. Les parties et les statistiques sont séparées par niveau.
 - **Indices progressifs** : d'abord un mot du top 1000 (top 300 en kid), puis à chaque fois un mot environ 4 fois (3 fois en kid) plus proche que ton meilleur essai. Au rang 1, plus d'indice.
-- **Les heures précédentes** : sous la partie, les mots des 48 dernières heures du niveau en cours, avec ton résultat (🎯 trouvé en N, 🏳️ abandon, pas joué). Le mot d'une heure non jouée est flouté (un toucher le révèle) et on peut encore la jouer. Le serveur (`GET /api/fr/history`) ne renvoie que des heures terminées.
-- **Rythme jour / nuit** (depuis le 21/11/2026) : 0h, 3h, 6h, puis chaque heure de 9h à 23h, soit 18 mots par jour. Défini dans `shared/timeline.ts` (`SLOTS`), commun au serveur et à l'app, changement d'heure géré. Les données ne bougent pas : les tables sont indexées par numéro de manche.
-- **Décompte** : « 🎯 N personnes ont trouvé le mot de 14h · M mots trouvés aujourd'hui », et le nombre de personnes pour chaque heure passée. Le compteur est tenu par le Durable Object `Stats` : une seule fois par appareil (identifiant anonyme) et par heure, et seulement avec le bon mot (`POST /api/fr/found`, `GET /api/fr/stats`).
+- **Les mots précédents** : sous la partie, les 24 derniers mots (3 jours) du niveau en cours, avec ton résultat (🎯 trouvé en N, 🏳️ abandon, pas joué) et le nombre de personnes qui les ont trouvés. Le mot non joué est flouté (un toucher le révèle) et on peut encore le jouer. Le serveur (`GET /api/fr/history`) ne renvoie que des manches terminées.
+- **Rythme** : un mot **toutes les 3 heures** (0h, 3h, 6h, 9h, 12h, 15h, 18h, 21h) depuis le 21/11/2026 15h ; avant, un mot par heure, puis un rythme jour/nuit. Les étapes sont listées dans `shared/timeline.ts` (`ERAS`), commun au serveur et à l'app, changement d'heure géré. Les manches déjà jouées gardent leur numéro, leur mot et leurs résultats. Pour changer de rythme, ajouter une étape future. Les 2000 manches préparées durent environ 8 mois.
+- **Décompte** : « 🎯 N personnes ont trouvé le mot de 14h · M mots trouvés aujourd'hui », et le nombre de personnes pour chaque mot passé. Le compteur est tenu par le Durable Object `Stats` : une seule fois par appareil (identifiant anonyme) et par heure, et seulement avec le bon mot (`POST /api/fr/found`, `GET /api/fr/stats`).
 - **Thème** : 🌓 auto (suit l'appareil), ☀️ clair ou 🌙 sombre, au choix en pied de page.
 - **Pistes** : tes essais sont regroupés automatiquement par thème.
-- **Abandonner** ne révèle le mot qu'à la fin de l'heure, pour ne pas fausser la compétition dans les rooms. Tant que l'heure n'est pas finie, on peut **reprendre la partie** (↩️).
+- **Abandonner** ne révèle le mot qu'à la fin du créneau (quand il change), pour ne pas fausser la compétition dans les rooms. D'ici là, on peut **reprendre la partie** (↩️).
 - **Trois écrans séparés** : `/` = ton jeu **solo** (jamais remplacé par une room) ; `/rooms` = le **centre des rooms** (reprendre la dernière room, **mes rooms**, rooms publiques, créer / rejoindre) ; `/room/CODE` = l'écran d'**une room**, avec sa propre partie gardée par le serveur. On peut être membre d'autant de rooms qu'on veut.
 - **Mes rooms** : rooms créées ou rejointes sur l'appareil (nom, code copiable, ton nom de joueur), « entrer » sans rien retaper, ✕ pour retirer.
 - **Deux modes de room**, modifiables à tout moment par n'importe quel membre, avec effet immédiat :
   - 🏆 **défi** (rose) : chacun joue de son côté, les mots des autres restent cachés, classement par points ;
   - 🤝 **collaboratif** (turquoise) : une partie commune ; chaque mot proposé apparaît en direct chez tous avec son auteur, un mot déjà proposé n'est pas recompté, et le premier qui trouve fait gagner l'équipe.
 - **Rooms publiques ou privées** : la page `/rooms` liste les rooms publiques, triées par activité, avec un bouton « rejoindre ». Une room privée ne se rejoint qu'avec son code. Le créateur peut changer la visibilité à tout moment. Chaque room a un nom libre, distinct de son code.
-- **Rooms** : un code de 5 caractères (sans O/0 ni I/1) et un pseudo, refusé s'il est déjà pris dans la room. Tout le monde joue le mot de l'heure. La progression des autres s'affiche en direct, sans leurs mots. Points par manche : 5 / 3 / 2 pour les trois premiers à trouver, puis 1, avec +1 si aucun indice n'a été utilisé. Une room s'efface après 30 jours sans activité. On la rejoint par le bouton 👥 ou par un lien `/room/CODE` ; en rouvrant l'app, on retrouve automatiquement sa dernière room.
+- **Rooms** : un code de 5 caractères (sans O/0 ni I/1) et un pseudo, refusé s'il est déjà pris dans la room. Tout le monde joue le même mot. La progression des autres s'affiche en direct, sans leurs mots. Points par manche : 5 / 3 / 2 pour les trois premiers à trouver, puis 1, avec +1 si aucun indice n'a été utilisé. Une room s'efface après 30 jours sans activité. On la rejoint par le bouton 👥 ou par un lien `/room/CODE` ; en rouvrant l'app, on retrouve automatiquement sa dernière room.
 
 ---
 

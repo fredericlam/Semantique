@@ -95,10 +95,10 @@
   <p class="same">
     {#if snap.mode === "collab"}🤝 une partie commune : tout le monde voit les mots de tous, le premier qui trouve fait gagner l'équipe.
     {:else}🏆 chacun cherche de son côté, les mots des autres restent cachés.{/if}
-    Même mot de l'heure que tout le monde.
+    Même mot que tout le monde, nouveau toutes les 3 heures.
   </p>
   <div class="seg" role="tablist">
-    <button role="tab" aria-selected={tab === "live"} onclick={() => (tab = "live")}>cette heure · {found}/{snap.players.length} 🎯</button>
+    <button role="tab" aria-selected={tab === "live"} onclick={() => (tab = "live")}>ce mot · {found}/{snap.players.length} 🎯</button>
     <button role="tab" aria-selected={tab === "points"} onclick={() => (tab = "points")}>classement</button>
   </div>
 

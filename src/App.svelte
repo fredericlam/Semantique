@@ -597,14 +597,14 @@
       {/if}
       <button class="room-cta" onclick={() => goPage("rooms")}>
         <span class="cta-emoji"><Icon name="users" size="1.9rem" /></span>
-        <span class="cta-text"><strong>Rejoins une room</strong><small>joue à plusieurs sur le mot de l'heure</small></span>
+        <span class="cta-text"><strong>Rejoins une room</strong><small>joue à plusieurs sur le même mot</small></span>
         <span class="install-arrow"><Icon name="arrow-right" /></span>
       </button>
     {/if}
 
     {#if newWordReady || round !== meta.current}
       <button class="banner" onclick={goToLatest}>
-        🌴 {newWordReady ? "Nouveau mot dispo !" : "Le mot de l'heure t'attend"} <strong>jouer <Icon name="arrow-right" /></strong>
+        🌴 {newWordReady ? "Nouveau mot dispo !" : "Le mot en cours t'attend"} <strong>jouer <Icon name="arrow-right" /></strong>
       </button>
     {/if}
 
@@ -726,8 +726,8 @@
     {:else if !over}
       <div class="note">
         <span class="tape" aria-hidden="true"></span>
-        <p><strong>Trouve le mot de l'heure.</strong> Chaque essai te dit à quel point tu en es proche <em>par le sens</em>.</p>
-        <p class="same-word">🌍 Un nouveau mot chaque heure (toutes les 3 h la nuit), <strong>le même pour tout le monde</strong>, en solo comme dans toutes les rooms.</p>
+        <p><strong>Trouve le mot secret.</strong> Chaque essai te dit à quel point tu en es proche <em>par le sens</em>.</p>
+        <p class="same-word">🌍 Un nouveau mot toutes les 3 heures (0h, 3h, 6h… 21h), <strong>le même pour tout le monde</strong>, en solo comme dans toutes les rooms.</p>
         <p class="scale">🧊 🌊 🌴 ☀️ 🥵 🔥 🎯</p>
         <p class="muted">Commence large (un animal, une émotion, un objet…), puis resserre autour des pistes chaudes.</p>
       </div>
@@ -800,13 +800,13 @@
 <dialog bind:this={helpDialog} onclick={(e) => e.target === helpDialog && helpDialog.close()}>
   <span class="tape" aria-hidden="true"></span>
   <h2>comment jouer</h2>
-  <p><strong>Un nouveau mot secret toutes les heures de 9h à minuit, puis à 0h, 3h et 6h la nuit — le même pour tout le monde</strong>, en solo comme dans toutes les rooms : tu peux comparer ta partie avec n'importe qui. Chaque mot proposé reçoit une <strong>température</strong> : plus il est proche du secret par le sens, plus il est chaud. 100° = trouvé. Le petit <strong>n°</strong> à côté, c'est son rang (n°1 = le plus proche).</p>
+  <p><strong>Un nouveau mot secret toutes les 3 heures (0h, 3h, 6h, 9h, 12h, 15h, 18h, 21h), le même pour tout le monde</strong>, en solo comme dans toutes les rooms : tu peux comparer ta partie avec n'importe qui. Chaque mot proposé reçoit une <strong>température</strong> : plus il est proche du secret par le sens, plus il est chaud. 100° = trouvé. Le petit <strong>n°</strong> à côté, c'est son rang (n°1 = le plus proche).</p>
   <ul class="legend">
     {#each LEVELS as l, i}
       <li><span class="emoji">{l.emoji}</span> <strong>{l.label}</strong> <span class="muted mono small">{i === 0 ? "100°" : l.maxRank === Infinity ? `< ${temperature(LEVELS[i - 1].maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°` : `≥ ${temperature(l.maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°`}</span></li>
     {/each}
   </ul>
-  {#if SHOW_LEVELS}<p><strong>3 niveaux</strong>, chacun avec son propre mot de l'heure : <strong><LevelTag level="kid" /></strong> (7–11 ans, mots concrets, indices plus généreux), <strong><LevelTag level="teen" /></strong> et <strong><LevelTag level="adult" /></strong>.</p>{/if}
+  {#if SHOW_LEVELS}<p><strong>3 niveaux</strong>, chacun avec son propre mot : <strong><LevelTag level="kid" /></strong> (7–11 ans, mots concrets, indices plus généreux), <strong><LevelTag level="teen" /></strong> et <strong><LevelTag level="adult" /></strong>.</p>{/if}
   <p>Zéro piège d'orthographe : <em>chevaux</em> = <em>cheval</em>, <em>mangeait</em> = <em>manger</em>, accents facultatifs.</p>
   <p><strong>Pistes</strong> regroupe tes essais par thème. Coincé ? <strong><Icon name="lightbulb" /> indice</strong> te donne un mot plus proche que ton meilleur.</p>
   {#if !isStandalone()}

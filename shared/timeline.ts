@@ -1,20 +1,34 @@
 /**
  * When each round (secret word) starts. Shared by the Worker and the app so both always agree.
  *
- * - Until SWITCH_AT: one round per `period` (the original hourly rhythm).
- * - From SWITCH_AT: a daily pattern of slots in the game's time zone — every 3 hours at night
- *   (0h, 3h, 6h, "il faut dormir"), then every hour from 9h to 23h: 18 rounds a day.
+ * The rhythm changed over time; each era starts where the previous one stops, so rounds already
+ * played keep their number, word and results:
+ *   1. from the start: one round per `period` (hourly)
+ *   2. 21/11/2026 0h: day/night pattern (0h, 3h, 6h, then hourly 9h–23h)
+ *   3. 21/11/2026 15h: one round every 3 hours (0h, 3h, 6h … 21h) — 8 words a day
  *
- * Round tables are indexed by round number only, so changing the rhythm never touches the data.
+ * Each era must start on one of its own slots. Round tables are indexed by round number only,
+ * so changing the rhythm never touches the data. To change it again, append an era (in the future).
  */
-export const SWITCH_AT = "2026-11-21T00:00:00+01:00";
-export const SLOTS = [0, 3, 6, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
 
 export interface Timeline {
   start: string; // ISO datetime of round 1
-  period: number; // seconds per round before SWITCH_AT
+  period: number; // seconds per round in the first era
   timezone: string;
 }
+
+interface Era {
+  from: string; // ISO datetime, on one of the era's slots
+  slots: number[]; // start hours, in the game's time zone
+}
+
+export const ERAS: Era[] = [
+  { from: "2026-11-21T00:00:00+01:00", slots: [0, 3, 6, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23] },
+  { from: "2026-11-21T15:00:00+01:00", slots: [0, 3, 6, 9, 12, 15, 18, 21] },
+];
+
+/** Current rhythm, for texts: hours between two words. */
+export const HOURS_PER_WORD = 3;
 
 interface Parts { y: number; m: number; d: number; h: number }
 
@@ -39,26 +53,50 @@ function wallToUtc(y: number, m: number, d: number, h: number, tz: string): numb
 
 const dayIndex = (p: Parts) => Date.UTC(p.y, p.m - 1, p.d) / 86_400_000;
 
-/** Number of rounds played before the switch to the day/night rhythm. */
-const legacyRounds = (tl: Timeline) => Math.max(0, Math.round((Date.parse(SWITCH_AT) - Date.parse(tl.start)) / (tl.period * 1000)));
+/** Index of the slot in progress at hour h (last slot starting at or before h). */
+const slotAt = (slots: number[], h: number) => {
+  let i = 0;
+  for (let k = 0; k < slots.length; k++) if (slots[k] <= h) i = k;
+  return i;
+};
+
+/** Rounds of an era started at or before t (t ≥ era start). */
+function eraCount(era: Era, t: number, tz: string): number {
+  const s = parts(Date.parse(era.from), tz), p = parts(t, tz);
+  const first = slotAt(era.slots, s.h);
+  return (dayIndex(p) - dayIndex(s)) * era.slots.length + slotAt(era.slots, p.h) - first + 1;
+}
+
+/** Number of rounds played before each era begins. */
+function eraBases(tl: Timeline): number[] {
+  const bases: number[] = [];
+  let prevEnd = Math.round((Date.parse(ERAS[0].from) - Date.parse(tl.start)) / (tl.period * 1000));
+  bases.push(prevEnd);
+  for (let i = 1; i < ERAS.length; i++) {
+    prevEnd += eraCount(ERAS[i - 1], Date.parse(ERAS[i].from) - 1, tl.timezone);
+    bases.push(prevEnd);
+  }
+  return bases;
+}
 
 /** Round in progress at `now` (1-based). */
 export function roundAt(tl: Timeline, now = Date.now()): number {
-  const sw = Date.parse(SWITCH_AT);
-  if (now < sw) return Math.floor((now - Date.parse(tl.start)) / (tl.period * 1000)) + 1;
-  const sp = parts(sw, tl.timezone), np = parts(now, tl.timezone);
-  const days = dayIndex(np) - dayIndex(sp);
-  let slot = 0;
-  for (let i = 0; i < SLOTS.length; i++) if (SLOTS[i] <= np.h) slot = i;
-  return legacyRounds(tl) + days * SLOTS.length + slot + 1;
+  if (now < Date.parse(ERAS[0].from)) return Math.floor((now - Date.parse(tl.start)) / (tl.period * 1000)) + 1;
+  const bases = eraBases(tl);
+  let i = ERAS.length - 1;
+  while (i > 0 && now < Date.parse(ERAS[i].from)) i--;
+  return bases[i] + eraCount(ERAS[i], now, tl.timezone);
 }
 
 /** Start time (ms) of round n. */
 export function roundStart(tl: Timeline, n: number): number {
-  const legacy = legacyRounds(tl);
-  if (n <= legacy) return Date.parse(tl.start) + (n - 1) * tl.period * 1000;
-  const k = n - legacy - 1;
-  const sp = parts(Date.parse(SWITCH_AT), tl.timezone);
-  const day = new Date(Date.UTC(sp.y, sp.m - 1, sp.d + Math.floor(k / SLOTS.length)));
-  return wallToUtc(day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate(), SLOTS[k % SLOTS.length], tl.timezone);
+  const bases = eraBases(tl);
+  if (n <= bases[0]) return Date.parse(tl.start) + (n - 1) * tl.period * 1000;
+  let i = ERAS.length - 1;
+  while (i > 0 && n <= bases[i]) i--;
+  const era = ERAS[i];
+  const s = parts(Date.parse(era.from), tl.timezone);
+  const k = n - bases[i] - 1 + slotAt(era.slots, s.h);
+  const day = new Date(Date.UTC(s.y, s.m - 1, s.d + Math.floor(k / era.slots.length)));
+  return wallToUtc(day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate(), era.slots[k % era.slots.length], tl.timezone);
 }

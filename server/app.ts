@@ -103,13 +103,13 @@ export function createApp() {
     return c.json(data.top(L, r, Math.min(500, Number(c.req.query("n")) || 100)));
   });
 
-  /** Words of the last finished rounds (up to 48 h), newest first, with how many found them. Never the current word. */
+  /** Words of the last 24 finished rounds (3 days at one word every 3 h), newest first, with how many found them. Never the current word. */
   app.get("/:lang/history", async (c) => {
     const L = c.get("L"), current = c.get("current"), level = c.get("level");
     const words = await gameData(c.env.DATA).schedule(L, level);
     if (!words) return c.json({ error: "no data" }, 500);
     const rounds: number[] = [];
-    for (let n = current - 1; n >= Math.max(1, current - 48); n--) rounds.push(n);
+    for (let n = current - 1; n >= Math.max(1, current - 24); n--) rounds.push(n);
     const found = await stats(c.env).counts(level, rounds);
     return c.json(rounds.map((n) => ({ round: n, word: words[n - 1], found: found[n] ?? 0 })), 200, { "cache-control": "public, max-age=60" });
   });
