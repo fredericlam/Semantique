@@ -146,3 +146,15 @@ dialog h2 {
   box-shadow: var(--shadow); cursor: pointer;
 }
 .go:not(:disabled):active { translate: 3px 3px; box-shadow: none; }
+
+/* 💋 easter egg */
+.kiss-fly {
+  position: fixed; z-index: 50; pointer-events: none; translate: -50% -50%;
+  animation: kiss-fly 1.4s cubic-bezier(.15,.8,.3,1) both;
+}
+@keyframes kiss-fly {
+  0% { transform: translate(0, 0) scale(0.2) rotate(0); opacity: 0; }
+  12% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(1.15) rotate(var(--rot)); opacity: 0; }
+}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { hardReload, isStandalone } from "./lib/pwa.ts";
+  import { isSweetheart, kiss } from "./lib/kiss.ts";
   import { roundStart } from "../shared/timeline.ts";
   import GuessRow from "./GuessRow.svelte";
   import RoomBoard from "./RoomBoard.svelte";
@@ -547,7 +548,11 @@
     <div class="sun" aria-hidden="true"></div>
     <svg class="palm" viewBox="0 0 64 96" aria-hidden="true"><path d="M33 94c-2-22 0-44 4-60" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M37 34c-10-12-24-12-34-4 12-2 22 0 34 4zM37 34c4-14 16-22 26-20-12 4-20 10-26 20zM37 34c-14 0-24 8-28 18 8-8 18-12 28-18zM37 34c12-4 22 2 26 10-8-6-16-8-26-10zM37 34c-2-12-10-22-20-26 10 8 16 16 20 26z" fill="currentColor"/></svg>
     <div class="brand">
-      <h1><a href="/" class="home" onclick={(e) => { e.preventDefault(); goPage("game"); }} title="Accueil">Sémantique</a></h1>
+      <h1><a href="/" class="home" onclick={(e) => {
+        e.preventDefault();
+        if (isSweetheart(session?.name ?? lastName())) kiss(e.currentTarget);
+        goPage("game");
+      }} title="Accueil">Sémantique</a></h1>
       {#if meta}
         <span class="day">
           <span class="date">{roundDate(round)} - {roundHour(round)}</span>
