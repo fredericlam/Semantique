@@ -8,6 +8,8 @@ import type { Env } from "./env.ts";
  */
 
 const EXPIRY_MS = 30 * 24 * 3600 * 1000; // rooms vanish after 30 days without activity
+/** Players with these names (case-insensitive) can remove anyone, in every room. */
+const ADMINS = ["fred"];
 const POINTS = [5, 3, 2]; // 1st, 2nd, 3rd to find; then 1; +1 without hints
 
 export type RoomError = { error: "not_found" | "taken" | "bad_name" | "auth" | "unknown_word" | "finished" | "no_hint" | "locked" | "no_data" | "forbidden" | "not_given_up" | "kicked" };
@@ -31,6 +33,7 @@ export interface Snapshot {
   mode: Mode;
   level: string;
   owner: string | null; // display name of the creator, who can change the visibility
+  admins: string[]; // display names of the players who can remove anyone
   round: number;
   players: { name: string; online: boolean; now: PlayerRound | null; points: number; wins: number }[];
 }
@@ -125,7 +128,8 @@ export class Room extends DurableObject<Env> {
     }
     const ownerKey = this.meta("owner");
     const owner = ownerKey ? (this.sql.exec<{ name: string }>("SELECT name FROM players WHERE key = ?", ownerKey).toArray()[0]?.name ?? null) : null;
-    return { code, name: this.meta("name") || `Room ${code}`, visibility: this.visibility(), mode: this.mode(), level: this.level(L), owner, round, players };
+    const admins = players.filter((p) => ADMINS.includes(nameKey(p.name))).map((p) => p.name);
+    return { code, name: this.meta("name") || `Room ${code}`, visibility: this.visibility(), mode: this.mode(), level: this.level(L), owner, admins, round, players };
   }
 
   /** Rooms created before levels existed play the default (adult) level. */
@@ -384,24 +388,44 @@ export class Room extends DurableObject<Env> {
     return { ok: true };
   }
 
-  /** The creator removes a player (and everything they played) from the room. */
-  async kick(token: string, name: string): Promise<{ ok: true } | RoomError> {
-    const me = this.player(token);
-    if (!me) return { error: "auth" };
-    if (this.meta("owner") !== me.key) return { error: "forbidden" };
-    const key = nameKey(String(name ?? ""));
-    const target = this.sql.exec<{ name: string }>("SELECT name FROM players WHERE key = ?", key).toArray()[0];
-    if (!target) return { error: "not_found" };
-    if (key === me.key) return { error: "forbidden" };
+  /** Delete a player and everything they played; the oldest remaining player inherits an orphaned room. */
+  private removePlayer(key: string) {
     this.ctx.storage.transactionSync(() => {
       this.sql.exec("DELETE FROM players WHERE key = ?", key);
       this.sql.exec("DELETE FROM guesses WHERE player = ?", key);
       this.sql.exec("DELETE FROM results WHERE player = ?", key);
+      if (this.meta("owner") === key) {
+        const next = this.sql.exec<{ key: string }>("SELECT key FROM players ORDER BY joined LIMIT 1").toArray()[0];
+        if (next) this.setMeta("owner", next.key);
+        else this.sql.exec("DELETE FROM meta WHERE k = 'owner'");
+      }
     });
     for (const ws of this.ctx.getWebSockets(key)) { try { ws.close(4001, "kicked"); } catch {} }
     this.touch();
+  }
+
+  /** The creator (or an admin) removes a player from the room. */
+  async kick(token: string, name: string): Promise<{ ok: true } | RoomError> {
+    const me = this.player(token);
+    if (!me) return { error: "auth" };
+    if (this.meta("owner") !== me.key && !ADMINS.includes(me.key)) return { error: "forbidden" };
+    const key = nameKey(String(name ?? ""));
+    const target = this.sql.exec<{ name: string }>("SELECT name FROM players WHERE key = ?", key).toArray()[0];
+    if (!target) return { error: "not_found" };
+    if (key === me.key) return { error: "forbidden" };
+    this.removePlayer(key);
     await this.broadcast();
     this.event(`🚪 ${target.name} a été retiré·e de la room`);
+    return { ok: true };
+  }
+
+  /** I leave the room for good: my name, words and points go away. */
+  async leave(token: string): Promise<{ ok: true } | RoomError> {
+    const me = this.player(token);
+    if (!me) return { ok: true }; // already gone
+    this.removePlayer(me.key);
+    await this.broadcast();
+    this.event(`👋 ${me.name} a quitté la room`);
     return { ok: true };
   }
 

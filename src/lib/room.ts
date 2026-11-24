@@ -20,6 +20,7 @@ export interface Snapshot {
   mode: Mode;
   level: string;
   owner: string | null;
+  admins?: string[]; // players who can remove anyone
   round: number;
   players: { name: string; online: boolean; now: PlayerRound | null; points: number; wins: number }[];
 }
@@ -41,7 +42,7 @@ export const ROOM_ERRORS: Record<string, string> = {
   finished: "Tu as déjà fini cette manche.",
   no_hint: "Plus d'indice : tu as déjà le mot le plus proche.",
   locked: "Le mot sera révélé quand il changera (toutes les 3 heures).",
-  forbidden: "Seul·e le créateur ou la créatrice de la room peut faire ça.",
+  forbidden: "Seul·e le créateur ou la créatrice de la room (ou un admin) peut faire ça.",
   not_given_up: "Tu n'as pas abandonné cette manche.",
   kicked: "Tu as été retiré·e de cette room par son créateur ou sa créatrice.",
 };
@@ -84,6 +85,7 @@ export const roomRename = (lang: string, s: Session, name: string) =>
 export const roomSetMode = (lang: string, s: Session, mode: Mode) => call<{ ok: true }>(lang, `/${s.code}/mode`, { token: s.token, mode });
 export const roomResume = (lang: string, s: Session) => call<{ ok: true }>(lang, `/${s.code}/resume`, { token: s.token });
 export const roomKick = (lang: string, s: Session, name: string) => call<{ ok: true }>(lang, `/${s.code}/kick`, { token: s.token, name });
+export const roomLeave = (lang: string, s: Session) => call<{ ok: true }>(lang, `/${s.code}/leave`, { token: s.token });
 export const roomSetVisibility = (lang: string, s: Session, visibility: Visibility) =>
   call<{ ok: true }>(lang, `/${s.code}/visibility`, { token: s.token, visibility });
 export const joinRoom = (lang: string, code: string, name: string, token?: string) =>

@@ -32,6 +32,7 @@
     if (!renameError) editing = false;
   }
   const isOwner = $derived(snap.owner === me);
+  const canKick = $derived(isOwner || (snap.admins ?? []).includes(me)); // creator or admin
   let kicking = $state<string | null>(null); // player awaiting a second tap to be removed
 
   let tab = $state<"live" | "points">("live");
@@ -124,7 +125,7 @@
           {:else}
             <span class="stat">{level(n.best ?? 99999).emoji} <strong>{heat(n.best ?? 99999, vocabSize).toFixed(1).replace(".", ",")}°</strong> · {n.tries} essai{n.tries > 1 ? "s" : ""}</span>
           {/if}
-          {#if isOwner && p.name !== me}
+          {#if canKick && p.name !== me}
             {#if kicking === p.name}
               <button class="kick confirm" onclick={() => { onkick(p.name); kicking = null; }} onblur={() => (kicking = null)} title="Confirmer">retirer ?</button>
             {:else}
@@ -141,6 +142,13 @@
           <span class="pos">{["🥇", "🥈", "🥉"][i] ?? i + 1}</span>
           <span class="name">{p.name}</span>
           <span class="stat"><strong>{p.points}</strong> pts · {p.wins} 🎯</span>
+          {#if canKick && p.name !== me}
+            {#if kicking === p.name}
+              <button class="kick confirm" onclick={() => { onkick(p.name); kicking = null; }} onblur={() => (kicking = null)} title="Confirmer">retirer ?</button>
+            {:else}
+              <button class="kick" onclick={() => (kicking = p.name)} aria-label={`Retirer ${p.name} de la room`} title={`Retirer ${p.name} de la room`}>✕</button>
+            {/if}
+          {/if}
         </li>
       {/each}
     </ol>

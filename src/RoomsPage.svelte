@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { forgetRoom, listRooms, myRooms, roomState, type PublicRoom } from "./lib/room.ts";
+  import { forgetRoom, listRooms, myRooms, roomLeave, roomState, savedSession, type PublicRoom } from "./lib/room.ts";
   import Icon from "./Icon.svelte";
   import LevelTag from "./LevelTag.svelte";
   import { SHOW_LEVELS } from "./lib/game.ts";
@@ -35,9 +35,15 @@
     } catch {}
   }
 
-  function forget(code: string) {
+  let leaving = $state<string | null>(null); // room awaiting a second tap
+
+  /** Leave for good: the server drops my name and points, then this device forgets the room. */
+  async function forget(code: string) {
+    const s = savedSession(code);
+    if (s) await roomLeave(lang, s).catch(() => {}); // room gone or already removed: nothing to undo
     forgetRoom(code);
     mine = mine.filter((r) => r.code !== code);
+    leaving = null;
   }
 
   let rooms = $state<PublicRoom[] | null>(null);
@@ -107,7 +113,11 @@
             <button class="forget" onclick={() => forget(r.code)}>retirer</button>
           {:else}
             <button class="join" onclick={() => onenter(r.code)}>entrer</button>
-            <button class="x" onclick={() => forget(r.code)} title="Retirer de mes rooms (tu pourras la rejoindre avec un nouveau nom)" aria-label="Retirer de mes rooms">✕</button>
+            {#if leaving === r.code}
+              <button class="forget" onclick={() => forget(r.code)} onblur={() => (leaving = null)}>quitter ?</button>
+            {:else}
+              <button class="x" onclick={() => (leaving = r.code)} title="Quitter la room (ton nom et tes points y seront supprimés)" aria-label="Quitter la room">✕</button>
+            {/if}
           {/if}
         </li>
       {/each}
