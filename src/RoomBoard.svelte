@@ -4,9 +4,10 @@
   import LevelTag from "./LevelTag.svelte";
   import { SHOW_LEVELS } from "./lib/game.ts";
 
-  let { snap, me, vocabSize, connected, onshare, ontogglevisibility, onrename, onmode }: {
+  let { snap, me, vocabSize, connected, onshare, ontogglevisibility, onrename, onmode, onkick }: {
     snap: Snapshot; me: string; vocabSize: number; connected: boolean; onshare: () => void; ontogglevisibility: () => void;
     onmode: (mode: "defi" | "collab") => void;
+    onkick: (name: string) => void;
     onrename: (name: string) => Promise<string | null>; // resolves to an error message, or null when done
   } = $props();
 
@@ -31,6 +32,7 @@
     if (!renameError) editing = false;
   }
   const isOwner = $derived(snap.owner === me);
+  let kicking = $state<string | null>(null); // player awaiting a second tap to be removed
 
   let tab = $state<"live" | "points">("live");
 
@@ -52,7 +54,10 @@
   <span class="tape" aria-hidden="true"></span>
   <header>
     <div class="title">
-      <span class="room-name">{snap.name} {#if SHOW_LEVELS}<span class="lvl"><LevelTag level={snap.level} /></span>{/if}</span>
+      <span class="name-line">
+        <span class="room-name">{snap.name} {#if SHOW_LEVELS}<span class="lvl"><LevelTag level={snap.level} /></span>{/if}</span>
+        {#if snap.owner}<span class="owner" title="Créateur ou créatrice de la room">par <strong>{snap.owner}</strong></span>{/if}
+      </span>
       <span class="meta-line">
         <span class="dot" class:on={connected} title={connected ? "en direct" : "reconnexion…"}></span>
         <span class="kicker">code</span> <span class="code">{snap.code}</span>
@@ -119,6 +124,13 @@
           {:else}
             <span class="stat">{level(n.best ?? 99999).emoji} <strong>{heat(n.best ?? 99999, vocabSize).toFixed(1).replace(".", ",")}°</strong> · {n.tries} essai{n.tries > 1 ? "s" : ""}</span>
           {/if}
+          {#if isOwner && p.name !== me}
+            {#if kicking === p.name}
+              <button class="kick confirm" onclick={() => { onkick(p.name); kicking = null; }} onblur={() => (kicking = null)} title="Confirmer">retirer ?</button>
+            {:else}
+              <button class="kick" onclick={() => (kicking = p.name)} aria-label={`Retirer ${p.name} de la room`} title={`Retirer ${p.name} de la room`}>✕</button>
+            {/if}
+          {/if}
         </li>
       {/each}
     </ul>
@@ -147,7 +159,13 @@
   }
   header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.6rem; }
   .title { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; flex: 1; }
-  .room-name { font-family: var(--script); font-size: 1.7rem; line-height: 1.05; color: var(--pink); text-shadow: 1px 1px 0 var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .name-line { display: flex; align-items: baseline; gap: 0.5rem; min-width: 0; }
+  .owner { flex: none; font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+  .owner strong { color: var(--ink); }
+  .kick { flex: none; background: none; border: 0; color: var(--muted); font-weight: 700; font-size: 0.8rem; padding: 0 0.25rem; cursor: pointer; }
+  .kick:hover { color: var(--pink); }
+  .kick.confirm { background: var(--pink); color: white; border-radius: 99px; padding: 0.05rem 0.5rem; font-size: 0.72rem; }
+  .room-name { min-width: 0; font-family: var(--script); font-size: 1.7rem; line-height: 1.05; color: var(--pink); text-shadow: 1px 1px 0 var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lvl { display: inline-flex; font-family: var(--font); font-size: 0.75rem; font-weight: 700; color: var(--ink); background: var(--panel-2); border-radius: 99px; padding: 0.1rem 0.5rem; vertical-align: 0.35em; text-shadow: none; }
   .meta-line { display: flex; align-items: center; gap: 0.35rem; }
   .kicker { font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--muted); }

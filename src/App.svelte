@@ -12,7 +12,7 @@
   import HistoryList from "./HistoryList.svelte";
   import {
     cleanCode, connect, createRoom, joinRoom, lastName, lastRoom, roomGiveUp, roomGuess, roomHint, roomMine, roomResume,
-    roomReveal, roomSetVisibility, roomState, savedSession, saveSession, rememberRoom, myRooms, roomRename, roomSetMode, type RoomGuess, type Session, type Snapshot, type Visibility,
+    roomReveal, roomSetVisibility, roomKick, forgetRoom, RoomError, roomState, savedSession, saveSession, rememberRoom, myRooms, roomRename, roomSetMode, type RoomGuess, type Session, type Snapshot, type Visibility,
   } from "./lib/room.ts";
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, level, temperature } from "./lib/heat.ts";
@@ -234,6 +234,7 @@
       await enterRoom({ code, name: res.name, token: res.token });
       toast(create ? `« ${snap?.name} » créée (code ${code}) : invite tes potes !` : `Bienvenue dans « ${snap?.name} » 👋`);
     } catch (e) {
+      if (e instanceof RoomError && e.code === "kicked") forgetRoom(cleanCode(joinCode)); // rejoining afresh is allowed
       joinError = (e as Error).message;
     } finally {
       joinBusy = false;
@@ -316,6 +317,7 @@
       const ok = await joinRoom(LANG, code, s.name, s.token);
       await enterRoom({ ...s, name: ok.name });
     } catch (e) {
+      if (e instanceof RoomError && e.code === "kicked") return kickedOut(code);
       toast((e as Error).message);
       await goPage("rooms");
     }
@@ -336,7 +338,25 @@
         if (!collab || r !== round || game.guesses.some((o) => o.id === g.id)) return;
         add(g, "", g.hint, true);
       },
+      kicked: () => kickedOut(),
     };
+  }
+
+  /** The creator removed me: forget this room on this device and go back to the hub. */
+  async function kickedOut(code = session?.code) {
+    if (code) forgetRoom(code);
+    toast(new RoomError("kicked").message);
+    await goPage("rooms");
+  }
+
+  /** Creator only: remove a player (a test account, someone unwanted…) from the room. */
+  async function kickPlayer(name: string) {
+    if (!session) return;
+    try {
+      await roomKick(LANG, session, name);
+    } catch (e) {
+      toast((e as Error).message);
+    }
   }
 
   async function setMode(mode: "defi" | "collab") {
@@ -589,7 +609,7 @@
   {:else}
     {#if session && snap}
       <button class="room-back" onclick={leaveRoom}><Icon name="arrow-left" /> mes rooms</button>
-      <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} ontogglevisibility={toggleVisibility} onrename={renameMe} onmode={setMode} />
+      <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} ontogglevisibility={toggleVisibility} onrename={renameMe} onmode={setMode} onkick={kickPlayer} />
     {:else}
       {#if SHOW_LEVELS}
       <div class="levels" role="radiogroup" aria-label="Niveau de difficulté">

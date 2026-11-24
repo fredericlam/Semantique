@@ -10,7 +10,7 @@ import type { Env } from "./env.ts";
 const EXPIRY_MS = 30 * 24 * 3600 * 1000; // rooms vanish after 30 days without activity
 const POINTS = [5, 3, 2]; // 1st, 2nd, 3rd to find; then 1; +1 without hints
 
-export type RoomError = { error: "not_found" | "taken" | "bad_name" | "auth" | "unknown_word" | "finished" | "no_hint" | "locked" | "no_data" | "forbidden" | "not_given_up" };
+export type RoomError = { error: "not_found" | "taken" | "bad_name" | "auth" | "unknown_word" | "finished" | "no_hint" | "locked" | "no_data" | "forbidden" | "not_given_up" | "kicked" };
 export type Visibility = "public" | "private";
 /** défi: everyone plays alone, words hidden; collab: one shared game, everyone sees every word. */
 export type Mode = "defi" | "collab";
@@ -227,12 +227,11 @@ export class Room extends DurableObject<Env> {
     if (!this.meta("lang")) return { error: "not_found" };
     const clean = name.normalize("NFC").trim().replace(/\s+/g, " ");
     if (clean.length < 1 || clean.length > 20) return { error: "bad_name" };
+    const mine = this.player(token);
+    if (mine) return { token: token!, name: mine.name }; // already in (maybe renamed from another device)
+    if (token) return { error: "kicked" }; // my saved token is gone: the creator removed me
     const key = nameKey(clean);
-    const existing = this.sql.exec<{ name: string; token: string }>("SELECT name, token FROM players WHERE key = ?", key).toArray()[0];
-    if (existing) {
-      if (existing.token === token) return { token: existing.token, name: existing.name };
-      return { error: "taken" };
-    }
+    if (this.sql.exec("SELECT 1 FROM players WHERE key = ?", key).toArray().length) return { error: "taken" };
     const fresh = crypto.randomUUID();
     this.sql.exec("INSERT INTO players (key, name, token, joined) VALUES (?, ?, ?, ?)", key, clean, fresh, Date.now());
     if (!this.meta("owner")) this.setMeta("owner", key); // the creator joins first
@@ -385,6 +384,27 @@ export class Room extends DurableObject<Env> {
     return { ok: true };
   }
 
+  /** The creator removes a player (and everything they played) from the room. */
+  async kick(token: string, name: string): Promise<{ ok: true } | RoomError> {
+    const me = this.player(token);
+    if (!me) return { error: "auth" };
+    if (this.meta("owner") !== me.key) return { error: "forbidden" };
+    const key = nameKey(String(name ?? ""));
+    const target = this.sql.exec<{ name: string }>("SELECT name FROM players WHERE key = ?", key).toArray()[0];
+    if (!target) return { error: "not_found" };
+    if (key === me.key) return { error: "forbidden" };
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec("DELETE FROM players WHERE key = ?", key);
+      this.sql.exec("DELETE FROM guesses WHERE player = ?", key);
+      this.sql.exec("DELETE FROM results WHERE player = ?", key);
+    });
+    for (const ws of this.ctx.getWebSockets(key)) { try { ws.close(4001, "kicked"); } catch {} }
+    this.touch();
+    await this.broadcast();
+    this.event(`🚪 ${target.name} a été retiré·e de la room`);
+    return { ok: true };
+  }
+
   async setVisibility(token: string, visibility: Visibility): Promise<{ ok: true } | RoomError> {
     const me = this.player(token);
     if (!me) return { error: "auth" };
@@ -421,8 +441,13 @@ export class Room extends DurableObject<Env> {
   async fetch(req: Request): Promise<Response> {
     if (req.headers.get("Upgrade") !== "websocket") return new Response("expected websocket", { status: 426 });
     const me = this.player(new URL(req.url).searchParams.get("token") ?? undefined);
-    if (!me) return new Response("unauthorized", { status: 401 });
     const pair = new WebSocketPair();
+    if (!me) {
+      // removed from the room (or the room expired): say so instead of letting the client retry forever
+      pair[1].accept();
+      pair[1].close(4001, "kicked");
+      return new Response(null, { status: 101, webSocket: pair[0] });
+    }
     this.ctx.acceptWebSocket(pair[1], [me.key]);
     const snap = await this.snapshot();
     pair[1].send(JSON.stringify({ type: "snapshot", snapshot: snap }));

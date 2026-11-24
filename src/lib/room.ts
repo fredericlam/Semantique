@@ -43,9 +43,10 @@ export const ROOM_ERRORS: Record<string, string> = {
   locked: "Le mot sera révélé quand il changera (toutes les 3 heures).",
   forbidden: "Seul·e le créateur ou la créatrice de la room peut faire ça.",
   not_given_up: "Tu n'as pas abandonné cette manche.",
+  kicked: "Tu as été retiré·e de cette room par son créateur ou sa créatrice.",
 };
 
-class RoomError extends Error {
+export class RoomError extends Error {
   constructor(public code: string) {
     super(ROOM_ERRORS[code] ?? "Le serveur ne répond pas, réessaie.");
   }
@@ -82,6 +83,7 @@ export const roomRename = (lang: string, s: Session, name: string) =>
   call<{ token: string; name: string }>(lang, `/${s.code}/rename`, { token: s.token, name });
 export const roomSetMode = (lang: string, s: Session, mode: Mode) => call<{ ok: true }>(lang, `/${s.code}/mode`, { token: s.token, mode });
 export const roomResume = (lang: string, s: Session) => call<{ ok: true }>(lang, `/${s.code}/resume`, { token: s.token });
+export const roomKick = (lang: string, s: Session, name: string) => call<{ ok: true }>(lang, `/${s.code}/kick`, { token: s.token, name });
 export const roomSetVisibility = (lang: string, s: Session, visibility: Visibility) =>
   call<{ ok: true }>(lang, `/${s.code}/visibility`, { token: s.token, visibility });
 export const joinRoom = (lang: string, code: string, name: string, token?: string) =>
@@ -177,6 +179,7 @@ export function connect(
     event: (text: string) => void;
     status: (online: boolean) => void;
     guess?: (round: number, guess: RoomGuess) => void; // collab mode: someone proposed a word
+    kicked?: () => void; // the creator removed me from the room (or it no longer exists)
   },
 ): () => void {
   let ws: WebSocket | null = null;
@@ -199,9 +202,14 @@ export function connect(
       if (msg.type === "event") on.event(msg.text);
       if (msg.type === "guess") on.guess?.(msg.round, msg.guess);
     };
-    ws.onclose = () => {
+    ws.onclose = (e) => {
       clearInterval(ping);
       on.status(false);
+      if (e.code === 4001) {
+        closed = true;
+        document.removeEventListener("visibilitychange", wake);
+        return on.kicked?.();
+      }
       if (!closed) setTimeout(open, Math.min(15_000, 1000 * 2 ** retry++));
     };
   };

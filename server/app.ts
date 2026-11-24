@@ -16,7 +16,7 @@ const validCode = (c: string) => new RegExp(`^[${CODE_ALPHABET}]{5}$`).test(c);
 
 const ERROR_STATUS: Record<RoomError["error"], 400 | 401 | 403 | 404 | 409 | 500> = {
   not_found: 404, taken: 409, bad_name: 400, auth: 401, unknown_word: 404, finished: 409, no_hint: 409, locked: 403, no_data: 500,
-  forbidden: 403, not_given_up: 409,
+  forbidden: 403, not_given_up: 409, kicked: 403,
 };
 const isError = (x: unknown): x is RoomError => typeof x === "object" && x !== null && "error" in x;
 
@@ -218,6 +218,11 @@ export function createApp() {
   app.post("/:lang/rooms/:code/mode", async (c) => {
     const { token, mode } = await c.req.json<{ token: string; mode: "defi" | "collab" }>();
     return reply(c, await room(c).setMode(token, mode));
+  });
+
+  app.post("/:lang/rooms/:code/kick", async (c) => {
+    const { token, name } = await c.req.json<{ token: string; name: string }>();
+    return reply(c, await room(c).kick(token, String(name ?? "")));
   });
 
   app.post("/:lang/rooms/:code/visibility", async (c) => {
