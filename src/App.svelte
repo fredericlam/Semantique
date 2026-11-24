@@ -5,6 +5,7 @@
   import { roundStart } from "../shared/timeline.ts";
   import GuessRow from "./GuessRow.svelte";
   import RoomBoard from "./RoomBoard.svelte";
+  import StatsDialog from "./StatsDialog.svelte";
   import RoomsPage from "./RoomsPage.svelte";
   import BugDialog from "./BugDialog.svelte";
   import Icon from "./Icon.svelte";
@@ -47,7 +48,7 @@
   let now = $state(Date.now());
   let inputEl = $state<HTMLInputElement>();
   let helpDialog: HTMLDialogElement;
-  let statsDialog: HTMLDialogElement;
+  let statsDialog: StatsDialog;
 
   // rooms
   let session = $state<Session | null>(null);
@@ -439,7 +440,11 @@
     last = guess;
     if (guess.rank === 0) {
       finish("won");
-      if (!fromTeammate) reportFound(LANG, playLevel, round, guess.word).then((s) => s && (foundStats = s));
+      if (!fromTeammate) {
+        const mine = game.guesses.filter((o) => !o.by || o.by === session?.name); // collab: only my own words
+        const played = { tries: mine.filter((o) => !o.hint).length, hints: mine.filter((o) => o.hint).length };
+        reportFound(LANG, playLevel, round, guess.word, played).then((s) => s && (foundStats = s));
+      }
     }
     persist();
   }
@@ -583,7 +588,7 @@
     <div class="header-actions">
       {#if !isStandalone()}<a class="icon install" href="/installer/" aria-label="Installer l'app" title="Installer l'app">📲</a>{/if}
       <button class="icon" class:active={!!session} onclick={() => goPage("rooms")} aria-label="Rooms" title="Les rooms"><Icon name="users" size="1.45rem" /></button>
-      <button class="icon" onclick={() => statsDialog.showModal()} aria-label="Statistiques">📊</button>
+      <button class="icon" onclick={() => statsDialog.open()} aria-label="Stats et classement" title="Stats et classement du jour"><Icon name="ranking" size="1.45rem" /></button>
       <button class="icon" onclick={() => helpDialog.showModal()} aria-label="Comment jouer">?</button>
     </div>
   </header>
@@ -906,20 +911,7 @@
   {#each toasts as t (t.id)}<div class="toast">{t.text}</div>{/each}
 </div>
 
-<dialog bind:this={statsDialog} onclick={(e) => e.target === statsDialog && statsDialog.close()}>
-  <span class="tape" aria-hidden="true"></span>
-  <h2>tes stats</h2>
-  {#if stats}
-    <div class="stats">
-      <div><strong>{stats.played}</strong><span>parties</span></div>
-      <div><strong>{stats.won}</strong><span>trouvés</span></div>
-      <div><strong>{stats.today}</strong><span>auj.</span></div>
-      <div><strong>{stats.bestTries ?? "–"}</strong><span>record</span></div>
-      <div><strong>{stats.avgTries ?? "–"}</strong><span>essais moy.</span></div>
-    </div>
-  {/if}
-  <form method="dialog"><button class="go wide">fermer</button></form>
-</dialog>
+<StatsDialog bind:this={statsDialog} lang={LANG} level={playLevel} {stats} suggestedName={() => session?.name ?? lastName()} />
 
 <style>
   .page { max-width: 520px; margin: 0 auto; padding: 0 16px calc(48px + env(safe-area-inset-bottom)); }
@@ -1070,10 +1062,6 @@
   dialog::backdrop { background: rgb(42 20 64 / 0.55); backdrop-filter: blur(3px); }
   .legend { list-style: none; padding: 0; display: grid; gap: 0.3rem; }
   .legend .emoji { display: inline-block; width: 1.6rem; }
-  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.4rem; text-align: center; margin: 0.8rem 0; }
-  .stats div { display: flex; flex-direction: column; gap: 0.15rem; }
-  .stats strong { font-family: var(--mono); font-size: 1.6rem; color: var(--pink); }
-  .stats span { font-size: 0.7rem; color: var(--muted); }
 
   .icon.active { background: var(--pink); color: white; }
   .levels { display: flex; gap: 4px; padding: 4px; margin: 2px 0 10px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 99px; }

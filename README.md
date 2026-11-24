@@ -119,19 +119,18 @@ Relancer le script de préparation garde les plannings existants et ne fait qu'a
 
 | Élément | Où | Mis à jour par |
 |---|---|---|
-| Interface (`dist/` : HTML, JS, CSS, icônes, service worker) | *Static Assets* du Worker `semantique` | chaque push sur `main` (automatique) |
-| API `/api/*` (`server/app.ts`) | Worker `semantique` | chaque push sur `main` (automatique) |
-| Rooms (`server/room.ts`) | Durable Objects `Room` (SQLite) | chaque push sur `main` (automatique) |
+| Interface (`dist/` : HTML, JS, CSS, icônes, service worker) | *Static Assets* du Worker `semantique` | `npm run deploy` (à la main) |
+| API `/api/*` (`server/app.ts`) | Worker `semantique` | `npm run deploy` (à la main) |
+| Rooms (`server/room.ts`) | Durable Objects `Room` (SQLite) | `npm run deploy` (à la main) |
 | Données du jeu (dictionnaire, planning, tables des manches) | R2 `semantique-data` | workflow manuel « Données du jeu » |
 
 Le site et l'API partagent la même adresse : le Worker répond lui-même à `/api/*` et laisse Cloudflare servir les fichiers de `dist/` pour tout le reste. Une adresse inconnue (`/room/XXXXX`…) renvoie `index.html`, ce qui laisse l'application gérer l'adresse.
 
-### Automatique : GitHub Actions
+### GitHub Actions
 
-- **`.github/workflows/deploy.yml`, « Vérifier et déployer »**
-  - à chaque **push sur `main`** : vérification des types, build, puis `wrangler deploy` (1 à 2 minutes) ;
-  - sur une **pull request** : vérification et build seulement, sans déploiement ;
-  - si les secrets Cloudflare manquent, le déploiement est ignoré avec un avertissement, sans faire échouer le workflow.
+- **`.github/workflows/check.yml`, « Vérifier (types + build) »**
+  - à chaque **push sur `main`** et sur chaque **pull request** : vérification des types et build, sans déploiement ;
+  - la mise en ligne se fait à la main avec `npm run deploy` (voir plus bas).
 - **`.github/workflows/data.yml`, « Données du jeu »** (lancement manuel : onglet *Actions*, puis *Run workflow*)
   1. récupère le planning existant sur R2 (les mots déjà joués ne changent pas) ;
   2. relance `pipeline/build.py` avec la graine secrète ;
@@ -145,7 +144,7 @@ Dans GitHub : **Settings → Secrets and variables → Actions → New repositor
 
 | Secret | Valeur | Où la trouver |
 |---|---|---|
-| `CLOUDFLARE_API_TOKEN` | jeton d'API Cloudflare | dash.cloudflare.com → *My Profile* → *API Tokens* → *Create Token* → modèle **« Edit Cloudflare Workers »**, puis ajouter la permission **Account · Workers R2 Storage · Edit** |
+| `CLOUDFLARE_API_TOKEN` | jeton d'API Cloudflare (pour le workflow « Données du jeu ») | dash.cloudflare.com → *My Profile* → *API Tokens* → *Create Token* → modèle **« Edit Cloudflare Workers »**, puis ajouter la permission **Account · Workers R2 Storage · Edit** |
 | `CLOUDFLARE_ACCOUNT_ID` | identifiant du compte | dash.cloudflare.com → *Workers & Pages* (colonne de droite, *Account ID*), ou `npx wrangler whoami` |
 | `SECRET_SEED` | contenu de `data/secret_seed` | sur ta machine : `pbcopy < data/secret_seed`. Ne le colle **nulle part ailleurs** : avec ce fichier, on peut retrouver tous les mots à venir. |
 

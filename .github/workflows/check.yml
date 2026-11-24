@@ -1,0 +1,27 @@
+# Vérifie les types et construit le site à chaque push sur main et sur chaque pull request.
+# Pas de déploiement ici : la mise en ligne se fait à la main avec `npm run deploy`.
+name: Vérifier (types + build)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Types + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build

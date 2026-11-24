@@ -18,6 +18,7 @@ const ERROR_STATUS: Record<RoomError["error"], 400 | 401 | 403 | 404 | 409 | 500
   not_found: 404, taken: 409, bad_name: 400, auth: 401, unknown_word: 404, finished: 409, no_hint: 409, locked: 403, no_data: 500,
   forbidden: 403, not_given_up: 409, kicked: 403,
 };
+const cleanPseudo = (s: unknown) => String(s ?? "").normalize("NFC").trim().replace(/\s+/g, " ").slice(0, 20);
 const isError = (x: unknown): x is RoomError => typeof x === "object" && x !== null && "error" in x;
 
 type Vars = { L: Lang; n: number; current: number; level: string };
@@ -139,14 +140,35 @@ export function createApp() {
   /** "I found it": counted once per device and round, only with the right word. */
   app.post("/:lang/found", async (c) => {
     const L = c.get("L"), level = c.get("level"), current = c.get("current");
-    const { round, word, device } = await c.req.json<{ round: number; word: string; device: string }>().catch(() => ({} as never));
+    const { round, word, device, tries, hints, name } = await c.req.json<{
+      round: number; word: string; device: string; tries?: number; hints?: number; name?: string;
+    }>().catch(() => ({} as never));
     if (!Number.isInteger(round) || round < 1 || round > current || !/^[\w-]{8,64}$/.test(String(device ?? "")))
       return c.json({ error: "bad request" }, 400);
     const id = L.index.get(String(word ?? ""));
     const r = await gameData(c.env.DATA).round(L, round, level);
     if (!r || id === undefined || r.rank[id] !== 0) return c.json({ error: "wrong word" }, 403);
-    await stats(c.env).record(level, round, device);
+    const count = (x: unknown) => (Number.isInteger(x) && (x as number) >= 0 && (x as number) < 10000 ? (x as number) : null);
+    await stats(c.env).record(level, round, device, count(tries), count(hints));
+    if (name !== undefined) await stats(c.env).setPseudo(device, cleanPseudo(name));
     return c.json(await counters(c.env, L, level, round, current));
+  });
+
+  /** Today's ranking (all players of this level), with my own line even when I'm not in the top. */
+  app.get("/:lang/leaderboard", async (c) => {
+    const L = c.get("L"), current = c.get("current");
+    const device = c.req.query("device") ?? "";
+    const board = await stats(c.env).board(c.get("level"), firstRoundToday(L, current), current, device);
+    return c.json(board, 200, { "cache-control": "no-store" });
+  });
+
+  /** My name in the daily ranking (empty: anonymous). */
+  app.post("/:lang/pseudo", async (c) => {
+    const { device, name } = await c.req.json<{ device: string; name: string }>().catch(() => ({} as never));
+    if (!/^[\w-]{8,64}$/.test(String(device ?? ""))) return c.json({ error: "bad request" }, 400);
+    const clean = cleanPseudo(name);
+    await stats(c.env).setPseudo(device, clean);
+    return c.json({ name: clean });
   });
 
   // ---------------------------------------------------------------- rooms

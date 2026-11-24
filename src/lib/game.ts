@@ -90,17 +90,63 @@ export function deviceId(): string {
 export const fetchStats = (lang: string, level: string, round: number) =>
   api<FoundStats>(`/api/${lang}/stats?level=${level}&round=${round}`).catch(() => null);
 
-export async function reportFound(lang: string, level: string, round: number, word: string): Promise<FoundStats | null> {
+export async function reportFound(
+  lang: string, level: string, round: number, word: string, played?: { tries: number; hints: number },
+): Promise<FoundStats | null> {
   try {
+    const name = pseudo();
     const r = await fetch(`/api/${lang}/found?level=${level}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ round, word, device: deviceId() }),
+      body: JSON.stringify({ round, word, device: deviceId(), ...played, ...(name ? { name } : {}) }),
     });
     return r.ok ? r.json() : null;
   } catch {
     return null;
   }
+}
+
+// ------------------------------------------------------------------ daily ranking
+
+export interface BoardRow {
+  pos: number;
+  name: string;
+  anonymous: boolean;
+  words: number;
+  avgTries: number | null;
+  hints: number;
+  me: boolean;
+}
+export interface Board {
+  rows: BoardRow[]; // top of the day
+  me: BoardRow | null; // my line, even outside the top
+  players: number;
+}
+
+export const fetchBoard = (lang: string, level: string) =>
+  api<Board>(`/api/${lang}/leaderboard?level=${level}&device=${deviceId()}`);
+
+/** My name in the daily ranking; empty means anonymous (the default: nothing is published without asking). */
+export function pseudo(): string {
+  try {
+    return localStorage.getItem("semantique:pseudo") ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export async function savePseudo(lang: string, name: string): Promise<string> {
+  const r = await fetch(`/api/${lang}/pseudo`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ device: deviceId(), name }),
+  });
+  if (!r.ok) throw new Error("Le serveur ne répond pas, réessaie.");
+  const { name: clean } = (await r.json()) as { name: string };
+  try {
+    localStorage.setItem("semantique:pseudo", clean);
+  } catch {}
+  return clean;
 }
 
 // ------------------------------------------------------------------ persistence (per browser)
