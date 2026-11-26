@@ -21,7 +21,7 @@
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, heatColor, level, temperature } from "./lib/heat.ts";
   import {
-    buildTracks, computeStats, fetchGuess, fetchHistory, fetchStats, reportFound, type FoundStats, SHOW_LEVELS, fetchHint, fetchMeta, fetchTop, loadState, nextHintRank, saveState, LEVEL_INFO, levelLabel,
+    buildTracks, computeStats, fetchGuess, fetchHistory, fetchStats, reportFound, type FoundStats, SHOW_LEVELS, ROOM_LEVELS, isSpecialLevel, fetchHint, fetchMeta, fetchTop, loadState, nextHintRank, saveState, LEVEL_INFO, levelLabel,
     type GameState, type Guess, type Meta,
   } from "./lib/game.ts";
 
@@ -588,7 +588,7 @@
 
   function shareText() {
     const counts = LEVELS.slice(1).map((l) => [l, game.guesses.filter((g) => !g.hint && level(g.rank) === l).length] as const);
-    const label = `Sémantique 🌴 mot de ${roundLabel(round)}${SHOW_LEVELS ? ` · ${levelLabel(playLevel)}` : ""}${session ? ` · room ${snap?.name ?? session.code}` : ""}`;
+    const label = `Sémantique 🌴 mot de ${roundLabel(round)}${SHOW_LEVELS || isSpecialLevel(playLevel) ? ` · ${levelLabel(playLevel)}` : ""}${session ? ` · room ${snap?.name ?? session.code}` : ""}`;
     const head = game.status === "won"
       ? `${label} — 🎯 en ${tries} essai${tries > 1 ? "s" : ""}${hints ? ` (${hints} 💡)` : ""}`
       : `${label} — 🏳️ abandon, meilleur ${best && meta ? temperature(best.rank, meta.vocabSize).toFixed(1) : "0"}°`;
@@ -910,7 +910,7 @@
 <dialog bind:this={helpDialog} onclick={(e) => e.target === helpDialog && helpDialog.close()}>
   <span class="tape" aria-hidden="true"></span>
   <h2>comment jouer</h2>
-  <p><strong>Un nouveau mot secret toutes les 3 heures (0h, 3h, 6h, 9h, 12h, 15h, 18h, 21h), le même pour tout le monde</strong>, en solo comme dans toutes les rooms : tu peux comparer ta partie avec n'importe qui. Chaque mot proposé reçoit une <strong>température</strong> : plus il est proche du secret par le sens, plus il est chaud. 100° = trouvé. Le petit <strong>n°</strong> à côté, c'est son rang (n°1 = le plus proche).</p>
+  <p><strong>Un nouveau mot secret toutes les 3 heures (0h, 3h, 6h, 9h, 12h, 15h, 18h, 21h), le même pour tout le monde</strong>, en solo comme dans toutes les rooms : tu peux comparer ta partie avec n'importe qui. Les rooms <strong>🎒 facile</strong> (dès 7 ans) ont leur propre mot, plus simple, le même pour toutes les rooms faciles. Chaque mot proposé reçoit une <strong>température</strong> : plus il est proche du secret par le sens, plus il est chaud. 100° = trouvé. Le petit <strong>n°</strong> à côté, c'est son rang (n°1 = le plus proche).</p>
   <ul class="legend">
     {#each LEVELS as l, i}
       <li><span class="emoji">{l.emoji}</span> <strong>{l.label}</strong> <span class="muted mono small">{i === 0 ? "100°" : l.maxRank === Infinity ? `< ${temperature(LEVELS[i - 1].maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°` : `≥ ${temperature(l.maxRank, meta?.vocabSize ?? 28849).toFixed(0)}°`}</span></li>
@@ -957,16 +957,17 @@
         <span>Nom de la room <span class="muted">(facultatif)</span></span>
         <input bind:value={roomName} maxlength="30" placeholder="ex. Les Flamants roses" autocomplete="off" />
       </label>
-      {#if SHOW_LEVELS}
       <fieldset class="vis">
         <legend>Niveau</legend>
         <div class="levels in-dialog" role="radiogroup" aria-label="Niveau de la room">
-          {#each meta?.levels ?? ["adult"] as l (l)}
-            <button type="button" role="radio" aria-checked={createLevel === l} class:on={createLevel === l} onclick={() => (createLevel = l)}><LevelTag level={l} /></button>
+          {#each (SHOW_LEVELS ? meta?.levels : ROOM_LEVELS.filter((l) => meta?.levels?.includes(l))) ?? ["adult"] as l (l)}
+            <button type="button" role="radio" aria-checked={createLevel === l} class:on={createLevel === l} onclick={() => (createLevel = l)} title={LEVEL_INFO[l]?.hint}>
+              <LevelTag level={l} />{#if l === "kid"}<small class="lvl-age">10 ans</small>{/if}
+            </button>
           {/each}
         </div>
+        <p class="lvl-hint">{LEVEL_INFO[createLevel]?.hint ?? ""}</p>
       </fieldset>
-      {/if}
       <fieldset class="vis">
         <legend>Visibilité</legend>
         <label class:on={roomVisibility === "public"}>
@@ -1056,7 +1057,7 @@
   /* one rhythm: the card is 12px radius / 12px padding, everything inside is 8px radius and 12px apart */
   .console {
     position: sticky; top: 8px; z-index: 3; margin: 0 0 var(--block-gap); padding: var(--inner-pad);
-    display: grid; gap: var(--inner-pad);
+    display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--inner-pad); /* minmax: the column may shrink below the input's natural width */
     border: 2px solid var(--line); border-radius: var(--block-radius); box-shadow: var(--shadow);
     background: color-mix(in srgb, var(--panel) 78%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   }
@@ -1084,7 +1085,7 @@
   .wordbox:focus-within { box-shadow: var(--shadow-sm), 0 0 34px -2px var(--glow); animation-duration: 3s; }
   .wb-ico { flex: none; font-size: 1.3rem; line-height: 1; width: 1.5rem; text-align: center; }
   .wordbox input {
-    border: 0; box-shadow: none; background: none; border-radius: 0; padding: 0.6rem 0;
+    width: 0; border: 0; box-shadow: none; background: none; border-radius: 0; padding: 0.6rem 0;
     font-size: 1.3rem; font-weight: 800; letter-spacing: 0.01em;
   }
   .wordbox input::placeholder { font-weight: 600; font-style: italic; opacity: 0.8; }
@@ -1114,12 +1115,13 @@
   }
   .last { margin: 0; padding: 0; }
   .toolbar { display: flex; align-items: center; gap: 0.5rem; }
-  .count { flex: 1; font-size: 0.9rem; }
+  .count { flex: 1; font-size: 0.9rem; white-space: nowrap; }
   .count strong { font-family: var(--mono); font-size: 1.1rem; }
   .pill {
     background: var(--panel); border: 2px solid var(--line); border-radius: 8px; padding: 0.5rem 1rem;
-    font-size: 0.92rem; font-weight: 700;
+    font-size: 0.92rem; font-weight: 700; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.3rem;
   }
+  @media (max-width: 400px) { .pill { padding: 0.45rem 0.7rem; font-size: 0.85rem; } .count { white-space: nowrap; } }
   .pill.danger { background: var(--pink); color: white; }
 
   /* ---------- tabs ---------- */
@@ -1194,6 +1196,8 @@
   .levels button { flex: 1; border: 0; background: none; border-radius: 8px; padding: 0.4rem 0.3rem; font-weight: 700; font-size: 0.88rem; color: var(--muted); white-space: nowrap; }
   .levels button.on { background: var(--pink); color: white; box-shadow: var(--shadow-sm); }
   .levels.in-dialog { margin: 0; }
+  .lvl-age { font-size: 0.7rem; font-weight: 600; opacity: 0.8; margin-left: 0.3rem; }
+  .lvl-hint { margin: 0.4rem 0 0; font-size: 0.75rem; color: var(--muted); }
   /* collaborative room: the whole room screen switches from pink (défi) to teal */
   .page.collab { --pink: #0e9f9a; --pink-soft: #c8f2ee; --sun-b: #2dd4bf; }
   .found-line { margin: 0 0 6px; font-size: 0.78rem; color: var(--muted); }

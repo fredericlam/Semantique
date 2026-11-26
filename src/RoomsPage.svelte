@@ -3,7 +3,7 @@
   import { forgetRoom, listRooms, myRooms, roomLeave, roomState, savedSession, type PublicRoom } from "./lib/room.ts";
   import Icon from "./Icon.svelte";
   import LevelTag from "./LevelTag.svelte";
-  import { SHOW_LEVELS } from "./lib/game.ts";
+  import { SHOW_LEVELS, isSpecialLevel } from "./lib/game.ts";
 
   let { lang, current, onjoin, onenter, oncode, oncreate, onback, currentRoom, onresume }: {
     lang: string; current: number; onjoin: (code: string) => void; onenter: (code: string) => void;
@@ -77,7 +77,7 @@
 <section class="rooms-page">
   <button class="back" onclick={onback}><Icon name="arrow-left" /> retour au jeu</button>
   <h2>les rooms</h2>
-  <p class="lead">Toutes les rooms jouent <strong>le même mot</strong> que tout le monde, solo compris, avec un nouveau mot toutes les 3 heures. La room ajoute la progression en direct de tes potes et un classement entre vous.</p>
+  <p class="lead">Toutes les rooms jouent <strong>le même mot</strong> que tout le monde, solo compris, avec un nouveau mot toutes les 3 heures. Les rooms <strong>🎒 facile</strong> ont leur propre mot, plus simple, partagé entre elles. La room ajoute la progression en direct de tes potes et un classement entre vous.</p>
 
   {#if currentRoom}
     <button class="current" onclick={onresume}>
@@ -101,7 +101,7 @@
       {#each mine as r (r.code)}
         <li class="room" class:gone={r.gone}>
           <div class="info">
-            <span class="name">{r.roomName ?? `Room ${r.code}`} {#if SHOW_LEVELS && r.level}<span class="lvl"><LevelTag level={r.level} /></span>{/if}{#if currentRoom?.code === r.code}<span class="here">dernière</span>{/if}</span>
+            <span class="name">{r.roomName ?? `Room ${r.code}`} {#if (SHOW_LEVELS || isSpecialLevel(r.level)) && r.level}<span class="lvl"><LevelTag level={r.level} /></span>{/if}{#if currentRoom?.code === r.code}<span class="here">dernière</span>{/if}</span>
             <span class="meta">
               <button class="code" onclick={() => copy(r.code)} title="Copier le code">{copied === r.code ? "copié ✓" : r.code}</button>
               · toi : <strong>{r.name}</strong>
@@ -139,7 +139,7 @@
       {#each rooms as r (r.code)}
         <li class="room">
           <div class="info">
-            <span class="name">{r.name} {#if SHOW_LEVELS}<span class="lvl"><LevelTag level={r.level} /></span>{/if}</span>
+            <span class="name">{r.name} {#if SHOW_LEVELS || isSpecialLevel(r.level)}<span class="lvl"><LevelTag level={r.level} /></span>{/if}</span>
             <span class="meta">
               {#if r.online}<span class="on">● {r.online} en ligne</span> · {/if}
               {r.players} joueur{r.players > 1 ? "s" : ""}

@@ -2,7 +2,7 @@
   import { heat, level } from "./lib/heat.ts";
   import type { Snapshot } from "./lib/room.ts";
   import LevelTag from "./LevelTag.svelte";
-  import { SHOW_LEVELS } from "./lib/game.ts";
+  import { SHOW_LEVELS, isSpecialLevel } from "./lib/game.ts";
 
   let { snap, me, vocabSize, connected, onshare, ontogglevisibility, onrename, onmode, onkick }: {
     snap: Snapshot; me: string; vocabSize: number; connected: boolean; onshare: () => void; ontogglevisibility: () => void;
@@ -54,7 +54,7 @@
 <section class="board">
   <header>
     <div class="title">
-      <span class="room-name">{snap.name}{#if SHOW_LEVELS} <span class="lvl"><LevelTag level={snap.level} /></span>{/if}</span>
+      <span class="room-name">{snap.name}{#if SHOW_LEVELS || isSpecialLevel(snap.level)} <span class="lvl"><LevelTag level={snap.level} /></span>{/if}</span>
       <span class="meta">
         <span class="dot" class:on={connected} title={connected ? "en direct" : "reconnexion…"}></span>
         <span class="code" title="Code de la room">{snap.code}</span>
@@ -143,7 +143,7 @@
 <style>
   /* same block as the play panel below it: 12px radius, 12px padding, 12px rhythm */
   .board {
-    display: grid; gap: 12px; margin: 0 0 14px; padding: 12px;
+    display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin: 0 0 14px; padding: 12px;
     border: 2px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
     background: color-mix(in srgb, var(--panel) 78%, transparent);
   }

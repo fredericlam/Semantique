@@ -39,10 +39,14 @@ export const SHOW_LEVELS = false;
 
 /** icon: Phosphor icon (UI); emoji: same idea for plain text (share message). */
 export const LEVEL_INFO: Record<string, { label: string; icon: "backpack" | "headphones" | "coffee"; emoji: string; hint: string }> = {
-  kid: { label: "kid", icon: "backpack", emoji: "🎒", hint: "7–11 ans : des mots concrets du quotidien" },
+  kid: { label: "facile", icon: "backpack", emoji: "🎒", hint: "dès 7 ans : des mots concrets du quotidien, des indices plus généreux" },
   teen: { label: "teen", icon: "headphones", emoji: "🎧", hint: "ados : des mots courants" },
-  adult: { label: "adulte", icon: "coffee", emoji: "☕", hint: "mots plus rares, plus abstraits" },
+  adult: { label: "normal", icon: "coffee", emoji: "☕", hint: "le jeu habituel : mots plus rares, plus abstraits" },
 };
+/** Levels offered when creating a room (solo stays on the default level unless SHOW_LEVELS). */
+export const ROOM_LEVELS = ["kid", "adult"];
+/** Show a level badge only when it isn't the usual game. */
+export const isSpecialLevel = (l: string | undefined | null) => !!l && l !== "adult";
 /** Plain-text label, with emoji (share message). */
 export const levelLabel = (l: string) => `${LEVEL_INFO[l]?.emoji ?? ""} ${LEVEL_INFO[l]?.label ?? l}`.trim();
 
