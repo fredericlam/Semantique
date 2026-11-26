@@ -2,10 +2,12 @@
   import { onMount, tick } from "svelte";
   import { hardReload, isStandalone } from "./lib/pwa.ts";
   import { isSweetheart, kiss } from "./lib/kiss.ts";
+  import { celebrate, corner, heatKind } from "./lib/fx.ts";
   import { roundStart } from "../shared/timeline.ts";
   import GuessRow from "./GuessRow.svelte";
   import RoomBoard from "./RoomBoard.svelte";
   import StatsDialog from "./StatsDialog.svelte";
+  import RoomHistory from "./RoomHistory.svelte";
   import RoomsPage from "./RoomsPage.svelte";
   import BugDialog from "./BugDialog.svelte";
   import Icon from "./Icon.svelte";
@@ -438,7 +440,11 @@
     if ("n" in g && typeof g.n === "number") guess.n = g.n;
     game.guesses.push(guess);
     last = guess;
+    const kind = fromTeammate || hint ? null : heatKind(guess.rank); // only my own typed words
+    if (kind) corner(kind);
     if (guess.rank === 0) {
+      const me = session?.name ?? lastName();
+      celebrate(guess.word, { tries: game.guesses.filter((o) => !o.hint).length, sweetheart: isSweetheart(me) ? me : null });
       finish("won");
       if (!fromTeammate) {
         const mine = game.guesses.filter((o) => !o.by || o.by === session?.name); // collab: only my own words
@@ -753,7 +759,7 @@
           {/each}
         </ul>
       {/if}
-    {:else if !over}
+    {:else if !over && !session}
       <div class="note">
         <span class="tape" aria-hidden="true"></span>
         <p><strong>Trouve le mot secret.</strong> Chaque essai te dit à quel point tu en es proche <em>par le sens</em>.</p>
@@ -791,7 +797,11 @@
       </section>
     {/if}
 
-    {#if !session}
+    {#if session}
+      {#key `${session.code}:${meta.current}`}
+        <RoomHistory lang={LANG} {session} me={session.name} label={roundLabel} />
+      {/key}
+    {:else}
     <HistoryList
       items={pastWords}
       label={roundLabel}

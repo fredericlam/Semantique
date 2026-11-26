@@ -99,6 +99,14 @@ export const roomMine = (lang: string, s: Session, round: number) =>
 export const roomReveal = (lang: string, s: Session, round: number) =>
   call<{ top: Entry[]; players: { name: string; guesses: RoomGuess[] }[] }>(lang, `/${s.code}/reveal?token=${s.token}&round=${round}`);
 
+export interface PastRound {
+  round: number;
+  word: string | null;
+  players: { name: string; status: PlayerRound["status"]; tries: number; hints: number; place: number | null; guesses: { word: string; rank: number; hint: boolean }[] }[];
+}
+export const roomHistory = (lang: string, s: Session, before?: number) =>
+  call<{ rounds: PastRound[]; more: boolean }>(lang, `/${s.code}/history?token=${s.token}${before ? `&before=${before}` : ""}`);
+
 // ------------------------------------------------------------------ saved sessions (per browser)
 
 const KEY = "semantique:rooms";

@@ -158,3 +158,110 @@ dialog h2 {
   70% { opacity: 1; }
   100% { transform: translate(var(--dx), var(--dy)) scale(1.15) rotate(var(--rot)); opacity: 0; }
 }
+
+/* ---------- fx: corner stickers, win celebration, Jude-style wink (src/lib/fx.ts) ---------- */
+.fx-corner {
+  position: fixed; z-index: 60; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom));
+  width: 116px; height: 116px; border-radius: 26px; border: 2px solid var(--line); box-shadow: var(--shadow);
+  display: grid; place-items: center; overflow: hidden; pointer-events: none;
+  animation: fx-pop 2.2s cubic-bezier(.2,1.4,.4,1) both;
+}
+.fx-corner .fx-emoji { font-size: 3.2rem; line-height: 1; z-index: 1; margin-top: -0.6rem; }
+.fx-corner .fx-label { position: absolute; bottom: 0.55rem; z-index: 1; font-weight: 800; font-size: 0.78rem; color: white; text-shadow: 1px 1px 0 var(--ink); white-space: nowrap; }
+.fx-corner .fx-glow { position: absolute; inset: -40%; }
+.fx-corner .fx-bit { position: absolute; left: var(--x); font-size: calc(1rem * var(--s)); animation-delay: var(--d); opacity: 0; }
+
+.fx-ice { background: linear-gradient(160deg, #bfefff, #4fb7e8 70%, #2a7fc2); }
+.fx-ice .fx-emoji { animation: fx-shiver 0.12s linear 6 0.25s; }
+.fx-ice .fx-glow { background: radial-gradient(circle, rgb(255 255 255 / 0.7), transparent 55%); animation: fx-frost 2s ease-out both; }
+.fx-ice .fx-bit { top: -20px; animation: fx-snow 1.7s linear both; }
+
+.fx-hot { background: linear-gradient(160deg, #ffd166, #ff9f5a 55%, #ff6b4a); }
+.fx-hot .fx-emoji { animation: fx-sweat 0.5s ease-in-out 3 alternate 0.2s; }
+.fx-hot .fx-glow { background: repeating-conic-gradient(rgb(255 255 255 / 0.35) 0 12deg, transparent 12deg 30deg); animation: fx-spin 4s linear both; }
+.fx-hot .fx-bit { bottom: 10px; animation: fx-rise 1.6s ease-out both; filter: blur(0.3px); }
+
+.fx-fire { background: radial-gradient(circle at 50% 85%, #ffd166, #ff6b2c 45%, #d62828 80%, #6a0d2b); }
+.fx-fire .fx-emoji { animation: fx-flicker 0.18s ease-in-out infinite alternate; filter: drop-shadow(0 0 10px #ffb000); }
+.fx-fire .fx-glow { background: radial-gradient(circle at 50% 100%, rgb(255 220 120 / 0.9), transparent 60%); animation: fx-throb 0.4s ease-in-out infinite alternate; }
+.fx-fire .fx-bit { bottom: 0; animation: fx-rise 1.2s ease-in both; }
+
+@keyframes fx-pop {
+  0% { transform: translateY(140%) rotate(12deg) scale(0.6); }
+  14% { transform: translateY(0) rotate(-4deg) scale(1.05); }
+  22%, 80% { transform: translateY(0) rotate(0) scale(1); opacity: 1; }
+  100% { transform: translateY(20%) scale(0.85); opacity: 0; }
+}
+@keyframes fx-shiver { 25% { translate: -3px 1px; } 75% { translate: 3px -1px; } }
+@keyframes fx-frost { from { scale: 0.2; opacity: 0; } 40% { opacity: 1; } to { scale: 1; opacity: 0.5; } }
+@keyframes fx-snow { 0% { opacity: 0; transform: translateY(0) rotate(0); } 15% { opacity: 1; } 100% { opacity: 0.8; transform: translateY(150px) rotate(200deg); } }
+@keyframes fx-sweat { to { transform: translateY(-5px) scale(1.08) rotate(-4deg); } }
+@keyframes fx-spin { to { rotate: 120deg; } }
+@keyframes fx-rise { 0% { opacity: 0; transform: translateY(0) scale(0.6); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateY(-110px) scale(1.1); } }
+@keyframes fx-flicker { from { transform: scale(1) rotate(-3deg); } to { transform: scale(1.12) rotate(3deg); } }
+@keyframes fx-throb { to { opacity: 0.55; } }
+
+/* the word is found */
+.fx-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 70; pointer-events: none; }
+.fx-win { position: fixed; inset: 0; z-index: 69; display: grid; place-items: center; pointer-events: none; }
+.fx-flash { position: absolute; inset: 0; background: radial-gradient(circle, rgb(255 255 255 / 0.95), rgb(255 61 139 / 0.5) 45%, transparent 75%); animation: fx-flash 0.9s ease-out both; }
+.fx-rays {
+  position: absolute; width: 170vmax; height: 170vmax;
+  background: repeating-conic-gradient(rgb(255 209 102 / 0.22) 0 8deg, transparent 8deg 22deg);
+  mask-image: radial-gradient(circle, black 10%, transparent 55%);
+  animation: fx-rays 3.4s ease-out both;
+}
+.fx-stamp {
+  position: relative; display: grid; justify-items: center; gap: 0.1rem; padding: 1rem 1.6rem 1.1rem;
+  background: var(--panel); border: 3px solid var(--line); border-radius: 22px; box-shadow: 6px 6px 0 var(--ink), 0 0 50px rgb(255 61 139 / 0.6);
+  animation: fx-stamp 3.4s cubic-bezier(.2,1.5,.35,1) both;
+}
+.fx-kicker { font-family: var(--mono); font-weight: 700; text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.8rem; color: var(--muted); }
+.fx-word {
+  font-family: var(--script); font-size: clamp(2.6rem, 13vw, 4.4rem); line-height: 1.05; color: var(--pink);
+  text-shadow: 2px 2px 0 var(--ink), 0 0 18px rgb(255 61 139 / 0.8); animation: fx-neon 0.6s ease-in-out 4 alternate 0.5s;
+}
+.fx-tries { font-weight: 700; font-size: 0.95rem; }
+@keyframes fx-flash { from { opacity: 1; } to { opacity: 0; } }
+@keyframes fx-rays { 0% { opacity: 0; rotate: 0deg; scale: 0.3; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; rotate: 70deg; scale: 1; } }
+@keyframes fx-stamp {
+  0% { transform: scale(3) rotate(-18deg); opacity: 0; }
+  12% { transform: scale(0.92) rotate(3deg); opacity: 1; }
+  18%, 85% { transform: scale(1) rotate(-2deg); opacity: 1; }
+  100% { transform: scale(0.9) rotate(-2deg) translateY(-30px); opacity: 0; }
+}
+@keyframes fx-neon { to { text-shadow: 2px 2px 0 var(--ink), 0 0 34px rgb(255 61 139 / 1), 0 0 60px rgb(214 40 200 / 0.8); } }
+
+/* 🙌 Jude-style wink */
+.fx-jude {
+  position: fixed; z-index: 71; left: 50%; bottom: env(safe-area-inset-bottom); translate: -50% 0;
+  display: grid; justify-items: center; pointer-events: none; animation: fx-jude 4.2s ease-in-out both;
+}
+.fx-player { width: 170px; filter: drop-shadow(4px 4px 0 rgb(29 27 46 / 0.35)); }
+.fx-player svg { width: 100%; height: auto; display: block; }
+.fx-arm { transform-box: fill-box; }
+.fx-arm-l { transform-origin: 100% 50%; animation: fx-arm-l 4.2s ease-in-out both; }
+.fx-arm-r { transform-origin: 0% 50%; animation: fx-arm-r 4.2s ease-in-out both; }
+.fx-wink { opacity: 0; animation: fx-wink 4.2s steps(1) both; }
+.fx-eye { animation: fx-eye 4.2s steps(1) both; }
+.fx-spot { position: absolute; bottom: 0; width: 230px; height: 40px; border-radius: 50%; background: radial-gradient(rgb(255 209 102 / 0.7), transparent 70%); z-index: -1; }
+.fx-bubble {
+  position: relative; margin-bottom: 0.4rem; padding: 0.5rem 0.9rem; background: white; color: #1d1b2e; border: 2px solid #1d1b2e;
+  border-radius: 16px; box-shadow: 3px 3px 0 #1d1b2e; font-weight: 900; font-size: 1.15rem; text-align: center; display: grid;
+  animation: fx-bubble 4.2s ease-out both;
+}
+.fx-bubble small { font-weight: 600; font-size: 0.68rem; color: #6b6880; }
+.fx-bubble::after { content: ""; position: absolute; left: 50%; bottom: -9px; width: 14px; height: 14px; background: white; border-right: 2px solid #1d1b2e; border-bottom: 2px solid #1d1b2e; translate: -50% 0; rotate: 45deg; }
+@keyframes fx-jude { 0% { transform: translateY(110%); } 14%, 84% { transform: translateY(0); } 100% { transform: translateY(110%); } }
+/* arms start down along the body, then open wide and hold — the pose */
+@keyframes fx-arm-l { 0%, 16% { rotate: -75deg; } 30% { rotate: 14deg; } 34%, 100% { rotate: 8deg; } }
+@keyframes fx-arm-r { 0%, 16% { rotate: 75deg; } 30% { rotate: -14deg; } 34%, 100% { rotate: -8deg; } }
+/* the wink 😉: right eye closes twice */
+@keyframes fx-wink { 0% { opacity: 0; } 44% { opacity: 1; } 52% { opacity: 0; } 58% { opacity: 1; } 66% { opacity: 0; } }
+@keyframes fx-eye { 0% { opacity: 1; } 44% { opacity: 0; } 52% { opacity: 1; } 58% { opacity: 0; } 66% { opacity: 1; } }
+@keyframes fx-bubble { 0%, 30% { opacity: 0; transform: scale(0.4); } 38% { opacity: 1; transform: scale(1.1); } 42%, 100% { opacity: 1; transform: scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-corner, .fx-stamp, .fx-jude, .fx-bubble, .fx-arm, .fx-corner * { animation: none !important; }
+  .fx-rays, .fx-flash { display: none; }
+}

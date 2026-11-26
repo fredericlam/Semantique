@@ -38,6 +38,12 @@ export interface Snapshot {
   players: { name: string; online: boolean; now: PlayerRound | null; points: number; wins: number }[];
 }
 
+export interface PastRound {
+  round: number;
+  word: string | null;
+  players: { name: string; status: PlayerRound["status"]; tries: number; hints: number; place: number | null; guesses: { word: string; rank: number; hint: boolean }[] }[];
+}
+
 export interface RoomGuess extends Entry {
   n: number;
   hint: boolean;
@@ -458,6 +464,33 @@ export class Room extends DurableObject<Env> {
         .map((g) => ({ ...g, hint: g.hint === 1 })),
     })).filter((p) => p.guesses.length);
     return { top: gameData(this.env.DATA).top(L, r), players };
+  }
+
+  /**
+   * Past rounds the room played (newest first, never the current one): the word, and for each player
+   * their result and their words from closest to farthest.
+   */
+  async history(token: string, before?: number, limit = 8): Promise<{ rounds: PastRound[]; more: boolean } | RoomError> {
+    const me = this.player(token);
+    const L = await this.lang();
+    if (!me || !L) return { error: "auth" };
+    const current = roundAt(L.meta);
+    const top = Math.min(current, before ?? current) - 1;
+    const list = this.sql.exec<{ round: number }>(
+      "SELECT DISTINCT round FROM guesses WHERE round <= ? ORDER BY round DESC LIMIT ?", top, limit + 1).toArray().map((r) => r.round);
+    const words = await gameData(this.env.DATA).schedule(L, this.level(L));
+    const rounds = list.slice(0, limit).map((round): PastRound => {
+      const players = this.sql.exec<{ key: string; name: string }>("SELECT key, name FROM players ORDER BY joined").toArray().map((p) => {
+        const guesses = this.sql.exec<{ word: string; rank: number; hint: number }>(
+          "SELECT word, rank, hint FROM guesses WHERE round = ? AND player = ? ORDER BY rank", round, p.key).toArray()
+          .map((g) => ({ word: g.word, rank: g.rank, hint: g.hint === 1 }));
+        const res = this.result(round, p.key);
+        return { name: p.name, status: res?.status ?? "playing", tries: res?.tries ?? 0, hints: res?.hints ?? 0, place: res?.place ?? null, guesses };
+      }).filter((p) => p.guesses.length)
+        .sort((a, b) => (a.place ?? Infinity) - (b.place ?? Infinity) || (a.guesses[0]?.rank ?? Infinity) - (b.guesses[0]?.rank ?? Infinity));
+      return { round, word: words?.[round - 1] ?? null, players };
+    });
+    return { rounds, more: list.length > limit };
   }
 
   // ------------------------------------------------------------------ live updates (hibernatable WebSockets)

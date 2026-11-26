@@ -263,6 +263,11 @@ export function createApp() {
   app.get("/:lang/rooms/:code/reveal", async (c) =>
     reply(c, await room(c).reveal(c.req.query("token") ?? "", c.get("n"))));
 
+  app.get("/:lang/rooms/:code/history", async (c) => {
+    const before = Number(c.req.query("before"));
+    return reply(c, await room(c).history(c.req.query("token") ?? "", Number.isInteger(before) && before > 0 ? before : undefined));
+  });
+
   app.get("/:lang/rooms/:code/ws", (c) => room(c).fetch(c.req.raw));
 
   return app;
