@@ -80,8 +80,9 @@ robe chapeau guitare piano tambour marteau pirate princesse sorcière dragon ch�
 """.split())
 
 FR_LEVELS = {
-    # 7–11 ans : noms concrets et courants, proches de thèmes du quotidien d'un enfant
-    "kid": Level("kid", pos=("NOUN",), freq=(3.0, 700.0), length=(3, 10), themes=_KID_THEMES, theme_min=0.40,
+    # 7–11 ans : noms concrets et très courants (fréquence ≥ 15 / million : écarte gîte, jetée, évier…),
+    # proches de thèmes du quotidien d'un enfant
+    "kid": Level("kid", pos=("NOUN",), freq=(15.0, 700.0), length=(3, 10), themes=_KID_THEMES, theme_min=0.40,
                  exclude_suffixes=r"(tion|sion|isme|ité|ence|ance|ment|esse|itude|ude)$"),
     # ados : noms, verbes, adjectifs courants
     "teen": Level("teen", pos=("NOUN", "ADJ", "VERB"), freq=(12.0, 400.0), length=(3, 11)),

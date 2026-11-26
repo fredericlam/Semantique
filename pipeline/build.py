@@ -190,6 +190,9 @@ def main() -> None:
     ap.add_argument("lang", choices=sorted(LANGUAGES))
     ap.add_argument("--rounds", type=int, default=2000, help="number of secret words to schedule")
     ap.add_argument("--period", type=int, default=3600, help="seconds per round (first build only)")
+    ap.add_argument("--replan", action="append", default=[], metavar="LEVEL:ROUND",
+                    help="keep LEVEL's schedule up to ROUND (included) and re-draw the following words "
+                         "with the current filters, e.g. kid:73. Words already played never change.")
     ap.add_argument("--start", default=None,
                     help="ISO datetime of round 1, e.g. 2026-11-20T00:00:00+01:00 (first build only)")
     args = ap.parse_args()
@@ -254,12 +257,16 @@ def main() -> None:
         period = args.period
 
     vocab_set = set(vocab)
+    replan = {k: int(v) for k, v in (r.split(":") for r in args.replan)}
     rounds_per_level = {}
     for name, level in lang.levels.items():
         sched_path = priv / name / "schedule.json"
         sched_path.parent.mkdir(parents=True, exist_ok=True)
         sched = json.loads(sched_path.read_text()) if sched_path.exists() else None
         existing = [w for w in (sched["words"] if sched else []) if w in vocab_set]
+        if name in replan:
+            print(f"  [{name}] keeping rounds 1–{replan[name]}, re-drawing the rest")
+            existing = existing[: replan[name]]
         secrets = pick_secrets(lang, level, candidates(lang, level, vocab, freq, pos, M), args.rounds, existing)
         sched_path.write_text(json.dumps({"start": start, "period": period, "words": secrets}, ensure_ascii=False, indent=0))
         write_rounds(priv / name / "rounds", secrets, vocab, M)
