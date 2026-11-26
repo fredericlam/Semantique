@@ -436,6 +436,21 @@ export class Room extends DurableObject<Env> {
     return { ok: true };
   }
 
+  /** The creator (or an admin) renames the room. */
+  async setName(token: string, name: string): Promise<{ name: string } | RoomError> {
+    const me = this.player(token);
+    if (!me) return { error: "auth" };
+    if (this.meta("owner") !== me.key && !ADMINS.includes(me.key)) return { error: "forbidden" };
+    const clean = String(name ?? "").normalize("NFC").trim().replace(/\s+/g, " ").slice(0, 30);
+    if (!clean) return { error: "bad_name" };
+    if (clean === this.meta("name")) return { name: clean };
+    this.setMeta("name", clean);
+    this.touch();
+    await this.broadcast(); // also updates the public directory
+    this.event(`✏️ La room s'appelle maintenant « ${clean} »`);
+    return { name: clean };
+  }
+
   async setVisibility(token: string, visibility: Visibility): Promise<{ ok: true } | RoomError> {
     const me = this.player(token);
     if (!me) return { error: "auth" };

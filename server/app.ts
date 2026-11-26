@@ -252,6 +252,11 @@ export function createApp() {
     return reply(c, await room(c).leave(token));
   });
 
+  app.post("/:lang/rooms/:code/name", async (c) => {
+    const { token, name } = await c.req.json<{ token: string; name: string }>();
+    return reply(c, await room(c).setName(token, String(name ?? "")));
+  });
+
   app.post("/:lang/rooms/:code/visibility", async (c) => {
     const { token, visibility } = await c.req.json<{ token: string; visibility: "public" | "private" }>();
     return reply(c, await room(c).setVisibility(token, visibility));

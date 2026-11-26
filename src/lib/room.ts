@@ -86,6 +86,7 @@ export const roomSetMode = (lang: string, s: Session, mode: Mode) => call<{ ok: 
 export const roomResume = (lang: string, s: Session) => call<{ ok: true }>(lang, `/${s.code}/resume`, { token: s.token });
 export const roomKick = (lang: string, s: Session, name: string) => call<{ ok: true }>(lang, `/${s.code}/kick`, { token: s.token, name });
 export const roomLeave = (lang: string, s: Session) => call<{ ok: true }>(lang, `/${s.code}/leave`, { token: s.token });
+export const roomSetName = (lang: string, s: Session, name: string) => call<{ name: string }>(lang, `/${s.code}/name`, { token: s.token, name });
 export const roomSetVisibility = (lang: string, s: Session, visibility: Visibility) =>
   call<{ ok: true }>(lang, `/${s.code}/visibility`, { token: s.token, visibility });
 export const joinRoom = (lang: string, code: string, name: string, token?: string) =>

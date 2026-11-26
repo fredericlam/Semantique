@@ -4,10 +4,11 @@
   import LevelTag from "./LevelTag.svelte";
   import { SHOW_LEVELS, isSpecialLevel } from "./lib/game.ts";
 
-  let { snap, me, vocabSize, connected, onshare, ontogglevisibility, onrename, onmode, onkick }: {
+  let { snap, me, vocabSize, connected, onshare, ontogglevisibility, onrename, onmode, onkick, onrenameroom }: {
     snap: Snapshot; me: string; vocabSize: number; connected: boolean; onshare: () => void; ontogglevisibility: () => void;
     onmode: (mode: "defi" | "collab") => void;
     onkick: (name: string) => void;
+    onrenameroom: (name: string) => Promise<string | null>; // creator only; resolves to an error message, or null
     onrename: (name: string) => Promise<string | null>; // resolves to an error message, or null when done
   } = $props();
 
@@ -37,6 +38,19 @@
 
   let tab = $state<"live" | "points">("live");
 
+  // creator (or admin): rename the room by tapping its name
+  let editingRoom = $state(false);
+  let roomDraft = $state("");
+  async function saveRoomName(e: SubmitEvent) {
+    e.preventDefault();
+    const name = roomDraft.trim();
+    if (!name || name === snap.name) return (editingRoom = false);
+    saving = true;
+    renameError = (await onrenameroom(name)) ?? "";
+    saving = false;
+    if (!renameError) editingRoom = false;
+  }
+
   const ord = (n: number) => (n === 1 ? "1er" : `${n}e`);
 
   /** This hour: winners by arrival, then players by best rank, then those who haven't started. */
@@ -54,7 +68,17 @@
 <section class="board">
   <header>
     <div class="title">
-      <span class="room-name">{snap.name}</span>
+      {#if editingRoom}
+        <form class="rename room-rename" onsubmit={saveRoomName}>
+          <!-- svelte-ignore a11y_autofocus -->
+          <input bind:value={roomDraft} maxlength="30" autofocus aria-label="Nom de la room" onkeydown={(e) => e.key === "Escape" && (editingRoom = false)} />
+          <button type="submit" class="ok" disabled={saving}>ok</button>
+        </form>
+      {:else if canKick}
+        <button class="room-name editable" onclick={() => { roomDraft = snap.name; renameError = ""; editingRoom = true; }} title="Renommer la room (tu l'as créée)">{snap.name} <span class="pen">✏️</span></button>
+      {:else}
+        <span class="room-name">{snap.name}</span>
+      {/if}
       <span class="meta">
         {#if SHOW_LEVELS || isSpecialLevel(snap.level)}<span class="lvl"><LevelTag level={snap.level} /></span>{/if}
         <span class="dot" class:on={connected} title={connected ? "en direct" : "reconnexion…"}></span>
@@ -166,6 +190,10 @@
   header { display: flex; align-items: center; gap: 0.6rem; }
   .title { display: grid; gap: 0.15rem; min-width: 0; flex: 1; }
   .room-name { font-weight: 900; font-size: 1.6rem; line-height: 1.1; color: var(--pink); text-shadow: 1px 1px 0 var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  button.room-name { background: none; border: 0; padding: 0; font-family: inherit; text-align: left; cursor: pointer; max-width: 100%; }
+  button.room-name .pen { font-size: 0.9rem; text-shadow: none; opacity: 0.6; }
+  button.room-name:hover .pen { opacity: 1; }
+  .room-rename input { font-size: 1.2rem; font-weight: 900; padding: 0.3rem 0.5rem; }
   .lvl { display: inline-flex; font-size: 0.75rem; font-weight: 700; background: var(--panel-2); border-radius: 8px; padding: 0.1rem 0.5rem; vertical-align: 0.2em; }
   .meta { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--muted); min-width: 0; }
   .code { font-size: 0.72rem; }

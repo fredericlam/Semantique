@@ -16,7 +16,7 @@
   import HistoryList from "./HistoryList.svelte";
   import {
     cleanCode, connect, createRoom, joinRoom, lastName, lastRoom, roomGiveUp, roomGuess, roomHint, roomMine, roomResume,
-    roomReveal, roomSetVisibility, roomKick, forgetRoom, RoomError, roomState, savedSession, saveSession, rememberRoom, myRooms, roomRename, roomSetMode, type RoomGuess, type Session, type Snapshot, type Visibility,
+    roomReveal, roomSetVisibility, roomSetName, roomKick, forgetRoom, RoomError, roomState, savedSession, saveSession, rememberRoom, myRooms, roomRename, roomSetMode, type RoomGuess, type Session, type Snapshot, type Visibility,
   } from "./lib/room.ts";
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, heatColor, level, temperature } from "./lib/heat.ts";
@@ -422,6 +422,17 @@
     }
   }
 
+  /** Creator only: new room name. Resolves to an error message, or null when done. */
+  async function renameRoom(name: string): Promise<string | null> {
+    if (!session) return null;
+    try {
+      await roomSetName(LANG, session, name);
+      return null;
+    } catch (e) {
+      return (e as Error).message;
+    }
+  }
+
   async function toggleVisibility() {
     if (!session || !snap) return;
     try {
@@ -715,7 +726,7 @@
         <span class="mb-label"><span class="mb-badge"><Icon name="users" size="1.3rem" /></span><span class="mb-text"><small>tu joues</small><strong>à plusieurs</strong></span></span>
         <button class="mb-switch" onclick={playSolo}><Icon name="user" size="1rem" /> seul·e</button>
       </div>
-      <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} ontogglevisibility={toggleVisibility} onrename={renameMe} onmode={setMode} onkick={kickPlayer} />
+      <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} ontogglevisibility={toggleVisibility} onrename={renameMe} onmode={setMode} onkick={kickPlayer} onrenameroom={renameRoom} />
     {:else}
       {#if SHOW_LEVELS}
       <div class="levels" role="radiogroup" aria-label="Niveau de difficulté">
