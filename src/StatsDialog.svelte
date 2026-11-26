@@ -128,8 +128,8 @@
 
 <style>
   .stats-dialog { width: min(420px, calc(100vw - 32px)); }
-  .seg { display: flex; gap: 3px; padding: 3px; background: var(--panel-2); border-radius: 99px; margin: 0.6rem 0 0.8rem; }
-  .seg button { flex: 1; border: 0; background: none; border-radius: 99px; padding: 0.4rem; font-size: 0.85rem; font-weight: 700; color: var(--muted); }
+  .seg { display: flex; gap: 3px; padding: 3px; background: var(--panel-2); border-radius: 8px; margin: 0.6rem 0 0.8rem; }
+  .seg button { flex: 1; border: 0; background: none; border-radius: 8px; padding: 0.4rem; font-size: 0.85rem; font-weight: 700; color: var(--muted); }
   .seg button[aria-selected="true"] { background: var(--ink); color: var(--panel); }
 
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; text-align: center; }
@@ -155,7 +155,7 @@
   .muted { color: var(--muted); }
 
   .pseudo { margin-top: 0.9rem; display: flex; justify-content: center; }
-  .pseudo-btn { background: var(--panel-2); border: 0; border-radius: 99px; padding: 0.3rem 0.8rem; font-size: 0.82rem; color: var(--ink); cursor: pointer; }
+  .pseudo-btn { background: var(--panel-2); border: 0; border-radius: 8px; padding: 0.3rem 0.8rem; font-size: 0.82rem; color: var(--ink); cursor: pointer; }
   .pseudo-btn:hover .pen { color: var(--pink); }
   .pen { font-size: 0.75rem; font-weight: 700; color: var(--muted); }
   .pseudo form { display: flex; gap: 0.35rem; width: 100%; margin: 0; }

@@ -84,7 +84,7 @@
   label { display: grid; gap: 0.35rem; font-weight: 600; font-size: 0.88rem; }
   textarea {
     font: inherit; font-weight: 400; font-size: 1rem; padding: 0.7rem 0.85rem; resize: vertical;
-    border: 2px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--ink); box-shadow: var(--shadow-sm);
+    border: 2px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); box-shadow: var(--shadow-sm);
   }
   textarea:focus { outline: none; border-color: var(--pink); }
   .check { grid-template-columns: auto 1fr; align-items: start; font-weight: 400; font-size: 0.8rem; color: var(--muted); }

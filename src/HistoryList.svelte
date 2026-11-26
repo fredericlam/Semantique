@@ -65,7 +65,7 @@
   .word.hidden:hover { filter: blur(3px); }
   .res { font-size: 0.82rem; white-space: nowrap; }
   .muted { color: var(--muted); }
-  .play { background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 99px; padding: 0.15rem 0.6rem; font-size: 0.78rem; font-weight: 700; }
+  .play { background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 8px; padding: 0.15rem 0.6rem; font-size: 0.78rem; font-weight: 700; }
   .more { display: block; margin: 0.7rem auto 0; background: none; border: 0; font-weight: 700; color: var(--pink); }
   .found { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
   @media (max-width: 380px) { li { grid-template-columns: 3.4rem minmax(0, 1fr) auto auto auto; gap: 0.35rem; } }

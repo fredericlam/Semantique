@@ -1,5 +1,7 @@
 /** Easter egg 💋: for Amélie and Lili, tapping the logo sends hearts and a "smack". */
 
+import { isMuted } from "./fx.ts";
+
 const SWEETHEARTS = ["amelie", "lili"];
 
 export const isSweetheart = (name: string | null | undefined) =>
@@ -7,6 +9,7 @@ export const isSweetheart = (name: string | null | undefined) =>
 
 /** A short kiss sound, synthesised (no audio file): a filtered noise burst + a little pop. */
 function smack() {
+  if (isMuted()) return;
   try {
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new AC();

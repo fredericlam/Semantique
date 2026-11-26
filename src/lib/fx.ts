@@ -1,8 +1,25 @@
 /**
- * Little animations while playing: a corner sticker for icy / hot / burning guesses,
+ * Little animations while playing: a corner sticker for each heat level (🧊 🌊 🌴 ☀️ 🥵 🔥),
  * a big celebration when the word is found, and (for Amélie and Lili) a Jude Bellingham-style wink.
  * Everything is plain DOM + CSS (see app.css, "fx"), removed once played. Reduced motion: calmer versions.
  */
+
+// ------------------------------------------------------------------ sound switch (header button), remembered per device
+
+const MUTE_KEY = "semantique:mute";
+export function isMuted(): boolean {
+  try {
+    return localStorage.getItem(MUTE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+export function setMuted(muted: boolean) {
+  try {
+    if (muted) localStorage.setItem(MUTE_KEY, "1");
+    else localStorage.removeItem(MUTE_KEY);
+  } catch {}
+}
 
 const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -13,31 +30,109 @@ function el(tag: string, cls: string, html = ""): HTMLElement {
   return e;
 }
 
-// ------------------------------------------------------------------ corner sticker (ice / hot / fire)
+// ------------------------------------------------------------------ corner sticker, one per heat level
 
-type Kind = "ice" | "hot" | "fire";
-let lastIce = 0;
+type Kind = "ice" | "cool" | "mild" | "warm" | "hot" | "fire";
 
-/** Which sticker a rank deserves, if any (icy guesses are throttled: they're the most frequent). */
+/** The sticker for a rank: one per level of the scale (🧊 🌊 🌴 ☀️ 🥵 🔥), none for the secret word itself. */
 export function heatKind(rank: number): Kind | null {
   if (rank === 0) return null;
   if (rank <= 10) return "fire";
   if (rank <= 100) return "hot";
-  if (rank > 8000) {
-    if (Date.now() - lastIce < 25_000) return null;
-    lastIce = Date.now();
-    return "ice";
-  }
-  return null;
+  if (rank <= 500) return "warm";
+  if (rank <= 2000) return "mild";
+  if (rank <= 8000) return "cool";
+  return "ice";
 }
 
 const STICKERS: Record<Kind, { emoji: string; label: string; bits: string[] }> = {
   ice: { emoji: "🧊", label: "brrr…", bits: ["❄️", "❄️", "❄️", "❄️", "❄️", "❄️"] },
+  cool: { emoji: "🌊", label: "frais", bits: ["🫧", "🫧", "🫧", "🫧", "🫧"] },
+  mild: { emoji: "🌴", label: "tiède…", bits: ["🥥", "🍃", "🍃", "🥥"] },
+  warm: { emoji: "☀️", label: "ça se réchauffe", bits: ["✨", "✨", "✨", "✨"] },
   hot: { emoji: "🥵", label: "ça chauffe !", bits: ["〰️", "〰️", "〰️", "☀️"] },
   fire: { emoji: "🔥", label: "ça brûle !!", bits: ["🔥", "🔥", "✨", "🔥", "✨", "🔥", "🔥"] },
 };
 
-export function corner(kind: Kind) {
+/**
+ * One sound per heat level, rising in intensity (synthesised: no audio file):
+ * icy = a dull little "bonk", cool/mild = a plain ding, then from ☀️ it gets satisfying:
+ * the "payment done" double ding, a bright arpeggio for 🥵, a sparkling chord for 🔥.
+ * Web Audio follows the phone's silent switch on iOS, and the header mute button turns it all off.
+ */
+export function heatSound(kind: Kind) {
+  if (isMuted()) return;
+  try {
+    const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new AC();
+    const t = ctx.currentTime;
+    const out = ctx.createGain();
+    const comp = ctx.createDynamicsCompressor(); // the 🔥 chord stacks many notes: keep it clean, no clipping
+    out.connect(comp).connect(ctx.destination);
+    /** A bell-ish note: fundamental + a few inharmonic partials, quick attack, natural decay. */
+    const bell = (f: number, at: number, vol: number, len = 0.9, partials: readonly (readonly [number, number])[] = [[1, 1], [2.76, 0.25], [5.4, 0.08]]) => {
+      for (const [mult, v] of partials) {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "sine";
+        o.frequency.value = f * mult;
+        g.gain.setValueAtTime(0.0001, t + at);
+        g.gain.exponentialRampToValueAtTime(vol * v, t + at + 0.008);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + at + len / Math.sqrt(mult));
+        o.connect(g).connect(out);
+        o.start(t + at);
+        o.stop(t + at + len + 0.05);
+      }
+    };
+    let end = 1;
+    switch (kind) {
+      case "ice": { // dull, low, short: "bof"
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        const lp = ctx.createBiquadFilter();
+        lp.type = "lowpass";
+        lp.frequency.value = 600;
+        o.type = "triangle";
+        o.frequency.setValueAtTime(220, t);
+        o.frequency.exponentialRampToValueAtTime(140, t + 0.18);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.22, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+        o.connect(lp).connect(g).connect(out);
+        o.start(t);
+        o.stop(t + 0.25);
+        end = 0.4;
+        break;
+      }
+      case "cool": // a soft, low single tap
+        bell(659.25, 0, 0.12, 0.45, [[1, 1], [2.76, 0.1]]); // E5
+        end = 0.6;
+        break;
+      case "mild": // the plain, standard ding
+        bell(987.77, 0, 0.15, 0.7); // B5
+        break;
+      case "warm": // ☀️ "payment done": two bright notes
+        bell(1318.5, 0, 0.18); // E6
+        bell(1975.5, 0.11, 0.17); // B6
+        end = 1.2;
+        break;
+      case "hot": // 🥵 rising arpeggio, fuller
+        [1046.5, 1318.5, 1568, 2093].forEach((f, i) => bell(f, i * 0.075, 0.17, i === 3 ? 1.2 : 0.7)); // C6 E6 G6 C7
+        end = 1.6;
+        break;
+      case "fire": { // 🔥 big sparkling chord + shimmer on top
+        [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568, 2093].forEach((f, i) => bell(f, i * 0.05, i < 3 ? 0.12 : 0.15, 1.6));
+        for (let k = 0; k < 6; k++) bell(2637 + k * 220, 0.4 + k * 0.06, 0.05, 0.4, [[1, 1]]); // glitter
+        end = 2.1;
+        break;
+      }
+    }
+    setTimeout(() => ctx.close(), end * 1000 + 300);
+  } catch {}
+}
+
+export function corner(kind: Kind, opts: { sound?: boolean } = {}) {
+  if (opts.sound) heatSound(kind);
   document.querySelector(".fx-corner")?.remove();
   const s = STICKERS[kind];
   const box = el("div", `fx-corner fx-${kind}`, `<span class="fx-glow"></span><span class="fx-emoji">${s.emoji}</span><span class="fx-label">${s.label}</span>`);
@@ -58,6 +153,7 @@ export function corner(kind: Kind) {
 
 /** A short synthesised fanfare: rising arpeggio, then a sparkle. */
 function fanfare() {
+  if (isMuted()) return;
   try {
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new AC();

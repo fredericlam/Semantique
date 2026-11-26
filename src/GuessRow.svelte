@@ -7,11 +7,31 @@
 
   const h = $derived(heat(g.rank, vocabSize));
   const lv = $derived(level(g.rank));
+
+  /** Big row (the word just typed): the gauge fills up from 0 and the temperature counts up with it. */
+  const GAUGE_MS = 1000; // keep in sync with GAUGE_DELAY in App.svelte
+  let shown = $state(big ? 0 : -1); // -1: no animation, show the real value
+  const value = $derived(shown < 0 ? h : shown);
+  $effect(() => {
+    if (!big || matchMedia("(prefers-reduced-motion: reduce)").matches) return void (shown = -1);
+    const target = h, start = performance.now();
+    let raf = 0;
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / GAUGE_MS);
+      const e = 1 - Math.pow(1 - t, 3); // ease-out
+      shown = target * e;
+      if (t < 1) raf = requestAnimationFrame(step);
+      else shown = -1;
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  });
+  const done = $derived(shown < 0);
 </script>
 
 <li
-  class="row" class:flash class:compact class:big class:found={g.rank === 0}
-  style:--fill="{Math.max(4, h)}%" style:--heat={heatColor(h)}
+  class="row" class:flash class:compact class:big class:found={g.rank === 0} class:filling={!done}
+  style:--fill="{Math.max(4, value)}%" style:--heat={heatColor(value)}
   title={`similarité ${g.cos.toFixed(2)}`}
 >
   {#if !compact}<span class="n">{g.n}</span>{/if}
@@ -21,9 +41,9 @@
     {#if g.by}<span class="by">{g.by}</span>{/if}
     {#if g.input}<span class="input">← {g.input}</span>{/if}
   </span>
-  <span class="label"><span class="emoji" aria-hidden="true">{lv.emoji}</span><span class="lt">{lv.label}</span></span>
+  <span class="label" class:pop={big && done}><span class="emoji" aria-hidden="true">{lv.emoji}</span><span class="lt">{lv.label}</span></span>
   <span class="temp">
-    <span class="deg">{h === 100 ? "100" : h.toFixed(1).replace(".", ",")}°</span>
+    <span class="deg">{value === 100 ? "100" : value.toFixed(1).replace(".", ",")}°</span>
     {#if g.rank > 0}<span class="rank">n°{g.rank.toLocaleString("fr-FR")}</span>{/if}
   </span>
 </li>
@@ -36,7 +56,7 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.55rem 0.75rem 0.7rem 0.6rem;
-    border-radius: 14px;
+    border-radius: 8px;
     list-style: none;
     background: var(--panel);
     overflow: hidden;
@@ -52,10 +72,15 @@
     height: 5px;
     width: var(--fill);
     background: var(--heat);
-    border-radius: 0 99px 99px 0;
+    border-radius: 0 8px 8px 0;
     box-shadow: 0 0 10px var(--heat);
     transition: width 0.6s cubic-bezier(.2,.9,.3,1.2);
   }
+  /* while the gauge fills, it follows the counter frame by frame */
+  .row.filling::after { transition: none; }
+  .row.filling .label { opacity: 0; }
+  .pop { animation: pop 0.35s cubic-bezier(.2,1.6,.4,1); }
+  @keyframes pop { from { transform: scale(0.4); opacity: 0; } }
   .row::before {
     content: "";
     position: absolute;
@@ -67,7 +92,7 @@
   .word { min-width: 0; display: flex; align-items: baseline; gap: 0.35rem; flex-wrap: wrap; }
   .w { font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; }
   .input { color: var(--muted); font-size: 0.78rem; }
-  .by { font-size: 0.68rem; font-weight: 700; color: var(--pink); background: var(--pink-soft); border-radius: 99px; padding: 0 0.45rem; }
+  .by { font-size: 0.68rem; font-weight: 700; color: var(--pink); background: var(--pink-soft); border-radius: 8px; padding: 0 0.45rem; }
   .tag {
     font-family: var(--mono); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em;
     background: var(--teal); color: #10233a; padding: 0.05rem 0.4rem; border-radius: 4px; transform: rotate(-3deg);

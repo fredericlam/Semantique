@@ -164,9 +164,9 @@
   .ctas { display: flex; gap: 0.6rem; flex-wrap: wrap; }
   .go {
     font-family: var(--mono); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.9rem;
-    background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 14px; padding: 0.7rem 1rem; box-shadow: var(--shadow);
+    background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 12px; padding: 0.7rem 1rem; box-shadow: var(--shadow);
   }
-  .pill { background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 0.7rem 1rem; font-weight: 700; box-shadow: var(--shadow-sm); }
+  .pill { background: var(--panel); border: 2px solid var(--line); border-radius: 12px; padding: 0.7rem 1rem; font-weight: 700; box-shadow: var(--shadow-sm); }
   .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
   .room {
     display: flex; align-items: center; gap: 0.7rem; background: var(--panel); border: 2px solid var(--line);
@@ -177,13 +177,13 @@
   .info { flex: 1; min-width: 0; display: grid; gap: 0.15rem; }
   .name { font-weight: 800; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .meta { font-size: 0.8rem; color: var(--muted); }
-  .lvl { display: inline-flex; font-size: 0.72rem; font-weight: 700; background: var(--panel-2); border-radius: 99px; padding: 0.05rem 0.45rem; vertical-align: 0.1em; }
+  .lvl { display: inline-flex; font-size: 0.72rem; font-weight: 700; background: var(--panel-2); border-radius: 8px; padding: 0.05rem 0.45rem; vertical-align: 0.1em; }
   .on { color: #16a34a; font-weight: 700; }
   .current {
     position: relative; display: flex; align-items: center; gap: 0.8rem; width: 100%; margin: 8px 0 1.1rem;
     padding: 1.15rem 0.9rem 0.85rem; text-align: left; overflow: hidden;
     background: linear-gradient(100deg, var(--sun-a), var(--pink)); color: #2a1440;
-    border: 2px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); font: inherit; cursor: pointer;
+    border: 2px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); font: inherit; cursor: pointer;
   }
   /* diagonal ribbon across the top-left corner */
   .ribbon {
@@ -200,17 +200,17 @@
   .cur-code strong { font-family: var(--mono); letter-spacing: 0.12em; }
   .go-back {
     display: inline-flex; align-items: center; gap: 0.35rem; flex: none; white-space: nowrap;
-    background: #2a1440; color: white; font-weight: 800; font-size: 0.85rem; padding: 0.45rem 0.75rem; border-radius: 99px;
+    background: #2a1440; color: white; font-weight: 800; font-size: 0.85rem; padding: 0.45rem 0.75rem; border-radius: 8px;
     box-shadow: 3px 3px 0 rgb(255 255 255 / 0.6);
   }
   .current:active .go-back { translate: 2px 2px; box-shadow: none; }
-  .here { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; background: #16a34a; color: white; border-radius: 99px; padding: 0.05rem 0.45rem; margin-left: 0.35rem; vertical-align: 0.15em; }
+  .here { font-size: 0.66rem; font-weight: 800; text-transform: uppercase; background: #16a34a; color: white; border-radius: 8px; padding: 0.05rem 0.45rem; margin-left: 0.35rem; vertical-align: 0.15em; }
   .code { font-family: var(--mono); font-weight: 700; letter-spacing: 0.1em; background: var(--panel-2); border: 0; border-radius: 6px; padding: 0 0.35rem; color: var(--ink); font-size: 0.8rem; }
   .room.gone { opacity: 0.6; }
   .x { background: none; border: 0; color: var(--muted); font-weight: 700; padding: 0.2rem 0.3rem; margin-left: -0.3rem; }
   .warn { color: var(--pink); font-weight: 700; }
-  .forget { background: var(--panel); border: 2px solid var(--line); border-radius: 99px; padding: 0.35rem 0.85rem; font-weight: 700; white-space: nowrap; }
-  .join { background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 99px; padding: 0.35rem 0.85rem; font-weight: 700; white-space: nowrap; }
+  .forget { background: var(--panel); border: 2px solid var(--line); border-radius: 8px; padding: 0.35rem 0.85rem; font-weight: 700; white-space: nowrap; }
+  .join { background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 8px; padding: 0.35rem 0.85rem; font-weight: 700; white-space: nowrap; }
   .empty { background: var(--panel); border: 2px dashed var(--line); border-radius: 12px; padding: 0.4rem 1rem; text-align: center; }
   .muted { color: var(--muted); }
   .small { font-size: 0.82rem; }

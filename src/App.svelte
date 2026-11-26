@@ -2,7 +2,8 @@
   import { onMount, tick } from "svelte";
   import { hardReload, isStandalone } from "./lib/pwa.ts";
   import { isSweetheart, kiss } from "./lib/kiss.ts";
-  import { celebrate, corner, heatKind } from "./lib/fx.ts";
+  import { celebrate, corner, heatKind, isMuted, setMuted } from "./lib/fx.ts";
+  const GAUGE_DELAY = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1000; // GuessRow's GAUGE_MS
   import { roundStart } from "../shared/timeline.ts";
   import GuessRow from "./GuessRow.svelte";
   import RoomBoard from "./RoomBoard.svelte";
@@ -51,6 +52,11 @@
   let inputEl = $state<HTMLInputElement>();
   let helpDialog: HTMLDialogElement;
   let statsDialog: StatsDialog;
+  let muted = $state(isMuted());
+  function toggleMute() {
+    muted = !muted;
+    setMuted(muted);
+  }
 
   // rooms
   let session = $state<Session | null>(null);
@@ -69,9 +75,13 @@
   const playLevel = $derived(session && snap ? snap.level : soloLevel);
   let dialogMode = $state<"join" | "create">("join");
   /** game = solo (home), rooms = rooms hub, room = inside one room (its own game). */
-  type Page = "game" | "rooms" | "room";
+  /** home: choose solo or rooms · game: the solo game (/solo) · rooms: the hub · room: inside a room. */
+  type Page = "home" | "game" | "rooms" | "room";
   const pageFromPath = (): Page =>
-    location.pathname.startsWith("/rooms") ? "rooms" : /^\/room\/[A-Za-z0-9]{5}\/?$/.test(location.pathname) ? "room" : "game";
+    location.pathname.startsWith("/rooms") ? "rooms"
+    : /^\/room\/[A-Za-z0-9]{5}\/?$/.test(location.pathname) ? "room"
+    : location.pathname.startsWith("/solo") ? "game"
+    : "home";
   let page = $state<Page>(pageFromPath());
   let joinError = $state("");
   let joinBusy = $state(false);
@@ -89,7 +99,7 @@
   /** Technical context for bug reports — never the room code nor the guessed words. */
   const bugContext = () => ({
     version: meta?.version ?? null,
-    page: page === "rooms" ? "/rooms" : session ? "/room/(masqué)" : "/",
+    page: page === "rooms" ? "/rooms" : session ? "/room/(masqué)" : page === "game" ? "/solo" : "/",
     mode: session ? "room" : "solo",
     manche: round || null,
     statut: game.status,
@@ -280,11 +290,11 @@
     roomWords = [];
   }
 
-  async function goPage(p: "game" | "rooms", push = true) {
+  async function goPage(p: "home" | "game" | "rooms", push = true) {
     const wasRoom = !!session;
     if (wasRoom) closeRoom();
     page = p;
-    const path = p === "rooms" ? "/rooms" : "/";
+    const path = p === "rooms" ? "/rooms" : p === "game" ? "/solo" : "/";
     if (push && location.pathname !== path) history.pushState(null, "", path);
     scrollTo({ top: 0 });
     if (p === "game" && meta && wasRoom) await openRound(meta.current); // back to the solo game
@@ -314,11 +324,12 @@
     }
   }
   $effect(() => {
-    if (page === "game" && !session) loadHomeRoom();
+    if (page === "home") loadHomeRoom();
   });
 
-  /** Solo card: back to the word of the moment, focus the input. */
+  /** Solo card: into the solo game, on the word of the moment, input focused. */
   async function playSolo() {
+    await goPage("game");
     if (meta && round !== meta.current) await goToLatest();
     await tick();
     inputEl?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -466,7 +477,7 @@
     game.guesses.push(guess);
     last = guess;
     const kind = fromTeammate || hint ? null : heatKind(guess.rank); // only my own typed words
-    if (kind) corner(kind);
+    if (kind) setTimeout(() => corner(kind, { sound: true }), GAUGE_DELAY); // once the gauge of the new row is full
     if (guess.rank === 0) {
       const me = session?.name ?? lastName();
       celebrate(guess.word, { tries: game.guesses.filter((o) => !o.hint).length, sweetheart: isSweetheart(me) ? me : null });
@@ -599,6 +610,32 @@
 </script>
 
 
+{#snippet foot()}
+    <footer>
+      <button class="bug-card" onclick={() => bugDialog?.open()}>
+        <span class="bug-emoji"><Icon name="lightbulb" size="1.9rem" /></span>
+        <span><strong>Un bug, une idée ?</strong><small>Dis-le nous en deux mots</small></span>
+        <span class="install-arrow"><Icon name="arrow-right" /></span>
+      </button>
+      <div class="foot">
+      <div class="foot-controls">
+      <div class="theme-switch" role="radiogroup" aria-label="Thème">
+        {#each [["auto", "circle-half", "Thème automatique (suit l'appareil)"], ["light", "sun", "Thème clair"], ["dark", "moon", "Thème sombre"]] as const as [t, icon, label] (t)}
+          <button role="radio" aria-checked={theme === t} aria-label={label} title={label} class:on={theme === t} onclick={() => setTheme(t)}><Icon name={icon} size="1.05rem" /></button>
+        {/each}
+      </div>
+      <button class="reload" onclick={hardReload} title="Recharger l'app (et récupérer la dernière version)" aria-label="Recharger"><Icon name="reload" size="1rem" /> recharger</button>
+      </div>
+      <ul class="credits">
+        <li><span class="muted">Vecteurs</span> <a href="https://fauconnier.github.io/#data" target="_blank" rel="noopener">frWac, J.-P. Fauconnier</a> <span class="lic">CC-BY</span></li>
+        <li><span class="muted">Mots</span> <a href="http://www.lexique.org" target="_blank" rel="noopener">Lexique 3.83, New &amp; Pallier</a> <span class="lic">CC BY-SA</span></li>
+        <li><span class="muted">Inspiré de</span> <a href="https://cemantix.certitudes.org/" target="_blank" rel="noopener">Cémantix</a> et <a href="https://semantle.com/" target="_blank" rel="noopener">Semantle</a></li>
+        <li><a href="https://github.com/fredericlam/Semantique" target="_blank" rel="noopener">Code</a> <span class="muted">par</span> <a href="https://github.com/fredericlam" target="_blank" rel="noopener">fredericlam</a> · <a href="/installer/">Installer l'app</a></li>
+      </ul>
+      </div>
+    </footer>
+{/snippet}
+
 <div class="page" class:collab>
   <header>
     <div class="sun" aria-hidden="true"></div>
@@ -607,7 +644,7 @@
       <h1><a href="/" class="home" onclick={(e) => {
         e.preventDefault();
         if (isSweetheart(session?.name ?? lastName())) kiss(e.currentTarget);
-        goPage("game");
+        goPage("home");
       }} title="Accueil">Sémantique</a></h1>
       {#if meta}
         <span class="day">
@@ -620,6 +657,7 @@
       {#if !isStandalone()}<a class="icon install" href="/installer/" aria-label="Installer l'app" title="Installer l'app">📲</a>{/if}
       <button class="icon" class:active={!!session} onclick={() => goPage("rooms")} aria-label="Rooms" title="Les rooms"><Icon name="users" size="1.45rem" /></button>
       <button class="icon" onclick={() => statsDialog.open()} aria-label="Stats et classement" title="Stats et classement du jour"><Icon name="ranking" size="1.45rem" /></button>
+      <button class="icon" class:off={muted} onclick={toggleMute} aria-pressed={muted} aria-label={muted ? "Remettre le son" : "Couper le son"} title={muted ? "Son coupé : toucher pour le remettre" : "Couper le son"}><Icon name={muted ? "speaker-off" : "speaker"} size="1.35rem" /></button>
       <button class="icon" onclick={() => helpDialog.showModal()} aria-label="Comment jouer">?</button>
     </div>
   </header>
@@ -628,6 +666,34 @@
     <p class="note error-box">Impossible de charger le jeu : {loadError}</p>
   {:else if !meta}
     <p class="loading">Chargement…</p>
+  {:else if page === "home"}
+    <section class="home-hero">
+      <h2>comment tu joues ?</h2>
+      <p class="muted">Le même mot pour tout le monde, nouveau toutes les 3 heures.</p>
+    </section>
+    <div class="choose" aria-label="Comment tu joues ?">
+      <button class="mode-card solo" onclick={playSolo}>
+        <span class="mc-badge"><Icon name="user" size="2.2rem" /></span>
+        <span class="mc-title">seul·e</span>
+        <span class="mc-line">
+          {#if game.status === "won"}🎯 trouvé en {tries}
+          {:else if game.status === "gaveup"}🏳️ abandon
+          {:else if game.guesses.length}{level(best?.rank ?? 99999).emoji} {tries} essai{tries > 1 ? "s" : ""}
+          {:else}⏱ {countdown}{/if}
+        </span>
+        <span class="mc-foot">jouer <Icon name="arrow-right" /></span>
+      </button>
+      <button class="mode-card multi" onclick={() => (homeRoom ? enterSaved(homeRoom.code) : goPage("rooms"))}>
+        <span class="mc-badge"><Icon name="users" size="2.2rem" /></span>
+        <span class="mc-title">à plusieurs</span>
+        <span class="mc-line">
+          {#if homeRoom}{#if homeRoom.online}<span class="live"></span> {homeRoom.online} en ligne{:else}« {homeRoom.name} »{/if}
+          {:else}entre potes{/if}
+        </span>
+        <span class="mc-foot">{homeRoom ? "reprendre" : "rejoindre"} <Icon name="arrow-right" /></span>
+      </button>
+    </div>
+    {@render foot()}
   {:else if page === "rooms"}
     <RoomsPage
       lang={LANG}
@@ -638,13 +704,17 @@
       onresume={() => { const c = lastRoom(); if (c) enterSaved(c); }}
       oncode={() => openRoomDialog("", "join")}
       oncreate={() => openRoomDialog("", "create")}
-      onback={() => goPage("game")}
+      onback={() => goPage("home")}
     />
   {:else if page === "room" && !(session && snap)}
     <p class="loading">Ouverture de la room…</p>
   {:else}
     {#if session && snap}
-      <button class="room-back" onclick={leaveRoom}><Icon name="arrow-left" /> mes rooms</button>
+      <div class="mode-bar group">
+        <button class="mb-back" onclick={leaveRoom}><Icon name="arrow-left" /> mes rooms</button>
+        <span class="mb-label"><span class="mb-badge"><Icon name="users" size="1.3rem" /></span><span class="mb-text"><small>tu joues</small><strong>à plusieurs</strong></span></span>
+        <button class="mb-switch" onclick={playSolo}><Icon name="user" size="1rem" /> seul·e</button>
+      </div>
       <RoomBoard {snap} me={session.name} vocabSize={meta.vocabSize} {connected} onshare={inviteRoom} ontogglevisibility={toggleVisibility} onrename={renameMe} onmode={setMode} onkick={kickPlayer} />
     {:else}
       {#if SHOW_LEVELS}
@@ -656,41 +726,18 @@
         {/each}
       </div>
       {/if}
-      <div class="choose" aria-label="Comment tu joues ?">
-        <button class="mode-card solo" class:on={!session} onclick={playSolo} aria-current="true">
-          <span class="mc-head"><span class="mc-ico">🧍</span> seul·e <span class="mc-dot" aria-hidden="true"></span></span>
-          <span class="mc-title">mot de {roundLabel(round)}</span>
-          <span class="mc-line">
-            {#if game.status === "won"}🎯 trouvé en {tries}
-            {:else if game.status === "gaveup"}🏳️ abandon
-            {:else if game.guesses.length}⏸ {tries} essai{tries > 1 ? "s" : ""}{#if best} · {level(best.rank).emoji} {temperature(best.rank, meta.vocabSize).toFixed(0)}°{/if}
-            {:else}pas encore joué{/if}
-          </span>
-          {#if round === meta.current}<span class="mc-foot mono">⏱ {countdown}</span>
-          {:else}<span class="mc-foot">mot en cours →</span>{/if}
-        </button>
-        <div class="mode-card multi">
-          <button class="mc-main" onclick={() => (homeRoom ? enterSaved(homeRoom.code) : goPage("rooms"))}>
-            <span class="mc-head"><span class="mc-ico"><Icon name="users" size="1.15rem" /></span> à plusieurs</span>
-            {#if homeRoom}
-              <span class="mc-title">« {homeRoom.name} »</span>
-              <span class="mc-line">{#if homeRoom.online}<span class="live"></span> {homeRoom.online} en ligne{:else}{homeRoom.players ?? ""} joueur{(homeRoom.players ?? 0) > 1 ? "s" : ""}{/if}</span>
-              <span class="mc-foot">reprendre <Icon name="arrow-right" /></span>
-            {:else}
-              <span class="mc-title">avec tes potes</span>
-              <span class="mc-line">le même mot, en défi ou en équipe</span>
-              <span class="mc-foot">rejoindre ou créer <Icon name="arrow-right" /></span>
-            {/if}
-          </button>
-          {#if homeRoom}<button class="mc-all" onclick={() => goPage("rooms")}>toutes les rooms</button>{/if}
-        </div>
+      <div class="mode-bar solo">
+        <button class="mb-back" onclick={() => goPage("home")}><Icon name="arrow-left" /> accueil</button>
+        <span class="mb-label"><span class="mb-badge"><Icon name="user" size="1.3rem" /></span><span class="mb-text"><small>tu joues</small><strong>seul·e</strong></span></span>
+        <button class="mb-switch" onclick={() => goPage("rooms")}><Icon name="users" size="1rem" /> à plusieurs</button>
       </div>
-      <p class="mc-below">▼ ta partie solo</p>
     {/if}
 
     {#if newWordReady || round !== meta.current}
       <button class="banner" onclick={goToLatest}>
-        🌴 {newWordReady ? "Nouveau mot dispo !" : "Le mot en cours t'attend"} <strong>jouer <Icon name="arrow-right" /></strong>
+        <span class="bn-ico" aria-hidden="true">🌴</span>
+        <span class="bn-text"><strong>{newWordReady ? "Nouveau mot dispo !" : "Le mot en cours t'attend"}</strong><small>{newWordReady ? "le mot a changé, à toi de jouer" : `mot de ${roundLabel(meta.current)}`}</small></span>
+        <span class="bn-go">jouer <Icon name="arrow-right" /></span>
       </button>
     {/if}
 
@@ -720,7 +767,7 @@
           <button type="submit" class="go" disabled={busy || !input.trim()} aria-label="Essayer">GO <Icon name="arrow-right" /></button>
         </form>
 
-        <div class="feedback" aria-live="polite">
+        <div class="feedback" class:on={!!feedback} aria-live="polite">
           {#if feedback?.kind === "unknown"}
             <span class="err">« {feedback.input} » n'est pas dans le dico.</span>
             {#if feedback.suggestions.length}
@@ -739,7 +786,7 @@
       {/if}
 
       {#if last && !over}
-        <ul class="last" aria-label="Dernier essai"><GuessRow g={last} vocabSize={meta.vocabSize} big /></ul>
+        <ul class="last" aria-label="Dernier essai">{#key last.id}<GuessRow g={last} vocabSize={meta.vocabSize} big />{/key}</ul>
       {/if}
 
       {#if over}
@@ -782,6 +829,7 @@
     </section>
 
     {#if game.guesses.length}
+      <section class="words-block" aria-label="Tes mots">
       <div class="tabs" role="tablist">
         <button role="tab" aria-selected={view === "rank"} onclick={() => (view = "rank")} title="Tes mots, du plus chaud au plus froid">🌡️ thermomètre</button>
         <button role="tab" aria-selected={view === "tracks"} onclick={() => (view = "tracks")} title="Tes mots regroupés par thème">pistes</button>
@@ -810,6 +858,7 @@
           {/each}
         </ul>
       {/if}
+      </section>
     {/if}
 
     {#if over && roomWords.length}
@@ -854,29 +903,7 @@
     />
     {/if}
 
-    <footer>
-      <button class="bug-card" onclick={() => bugDialog?.open()}>
-        <span class="bug-emoji"><Icon name="lightbulb" size="1.9rem" /></span>
-        <span><strong>Un bug, une idée ?</strong><small>Dis-le nous en deux mots</small></span>
-        <span class="install-arrow"><Icon name="arrow-right" /></span>
-      </button>
-      <div class="foot">
-      <div class="foot-controls">
-      <div class="theme-switch" role="radiogroup" aria-label="Thème">
-        {#each [["auto", "circle-half", "Thème automatique (suit l'appareil)"], ["light", "sun", "Thème clair"], ["dark", "moon", "Thème sombre"]] as const as [t, icon, label] (t)}
-          <button role="radio" aria-checked={theme === t} aria-label={label} title={label} class:on={theme === t} onclick={() => setTheme(t)}><Icon name={icon} size="1.05rem" /></button>
-        {/each}
-      </div>
-      <button class="reload" onclick={hardReload} title="Recharger l'app (et récupérer la dernière version)" aria-label="Recharger"><Icon name="reload" size="1rem" /> recharger</button>
-      </div>
-      <ul class="credits">
-        <li><span class="muted">Vecteurs</span> <a href="https://fauconnier.github.io/#data" target="_blank" rel="noopener">frWac, J.-P. Fauconnier</a> <span class="lic">CC-BY</span></li>
-        <li><span class="muted">Mots</span> <a href="http://www.lexique.org" target="_blank" rel="noopener">Lexique 3.83, New &amp; Pallier</a> <span class="lic">CC BY-SA</span></li>
-        <li><span class="muted">Inspiré de</span> <a href="https://cemantix.certitudes.org/" target="_blank" rel="noopener">Cémantix</a> et <a href="https://semantle.com/" target="_blank" rel="noopener">Semantle</a></li>
-        <li><a href="https://github.com/fredericlam/Semantique" target="_blank" rel="noopener">Code</a> <span class="muted">par</span> <a href="https://github.com/fredericlam" target="_blank" rel="noopener">fredericlam</a> · <a href="/installer/">Installer l'app</a></li>
-      </ul>
-      </div>
-    </footer>
+    {@render foot()}
   {/if}
 </div>
 
@@ -967,7 +994,7 @@
 <StatsDialog bind:this={statsDialog} lang={LANG} level={playLevel} {stats} suggestedName={() => session?.name ?? lastName()} />
 
 <style>
-  .page { max-width: 520px; margin: 0 auto; padding: 0 16px calc(48px + env(safe-area-inset-bottom)); }
+  .page { --block-gap: 14px; --block-radius: 12px; --inner-radius: 8px; --inner-pad: 12px; max-width: 520px; margin: 0 auto; padding: 0 16px calc(48px + env(safe-area-inset-bottom)); }
 
   /* ---------- header: neon sign over a striped sunset ---------- */
   header { position: relative; display: flex; align-items: center; gap: 0.5rem; padding: 22px 0 14px; }
@@ -994,18 +1021,26 @@
   .day { white-space: nowrap; }
   .sep { opacity: 0.6; }
   .timer { font-variant-numeric: tabular-nums; }
+  /* every main block of the page shares the same radius, border and vertical rhythm */
   .banner {
-    display: flex; gap: 0.5rem; align-items: center; justify-content: center; width: 100%; margin-bottom: 8px;
-    background: linear-gradient(90deg, var(--sun-a), var(--pink)); color: #2a1440; font-weight: 600;
-    border: 2px solid var(--line); border-radius: 14px; padding: 0.6rem; box-shadow: var(--shadow-sm);
-    animation: pulse 2s ease-in-out infinite;
+    display: flex; gap: 0.7rem; align-items: center; width: 100%; margin: 0 0 var(--block-gap); padding: 0.7rem 0.8rem 0.7rem 1rem; text-align: left;
+    background: linear-gradient(110deg, var(--sun-a), #ff8a4c 45%, var(--pink)); color: #2a1440;
+    border: 2px solid var(--line); border-radius: var(--block-radius); box-shadow: var(--shadow);
+    animation: glow 2.2s ease-in-out infinite;
   }
-  @keyframes pulse { 50% { transform: scale(1.015); } }
+  @keyframes glow { 50% { box-shadow: var(--shadow), 0 0 22px rgb(255 61 139 / 0.55); } }
+  .bn-ico { font-size: 1.6rem; line-height: 1; }
+  .bn-text { flex: 1; display: grid; line-height: 1.2; }
+  .bn-text strong { font-size: 1.02rem; font-weight: 900; }
+  .bn-text small { font-size: 0.78rem; font-weight: 600; opacity: 0.8; }
+  .bn-go { display: inline-flex; align-items: center; gap: 0.3rem; background: #2a1440; color: white; border-radius: 8px; padding: 0.65rem 1.1rem; font-weight: 800; font-size: 0.95rem; }
+  .banner:active { translate: 2px 2px; box-shadow: none; }
   .icon {
     width: 2.6rem; height: 2.6rem; border-radius: 50%; border: 2px solid var(--line); background: var(--panel);
     font-weight: 800; font-size: 1.05rem; box-shadow: var(--shadow-sm);
   }
   .icon:active { translate: 2px 2px; box-shadow: none; }
+  .icon.off { color: var(--muted); background: var(--panel-2); }
   a.icon { display: grid; place-items: center; text-decoration: none; }
   /* phones: 3 round buttons max; install is reachable from the help dialog */
   @media (max-width: 480px) {
@@ -1018,43 +1053,45 @@
 
   /* ---------- sticky console ---------- */
   /* the play panel: stats line, the word box, feedback, last word and actions, all in one card */
+  /* one rhythm: the card is 12px radius / 12px padding, everything inside is 8px radius and 12px apart */
   .console {
-    position: sticky; top: 8px; z-index: 3; margin: 4px 0 14px; padding: 10px 12px 10px;
-    border: 2px solid var(--line); border-radius: 28px; box-shadow: var(--shadow);
+    position: sticky; top: 8px; z-index: 3; margin: 0 0 var(--block-gap); padding: var(--inner-pad);
+    display: grid; gap: var(--inner-pad);
+    border: 2px solid var(--line); border-radius: var(--block-radius); box-shadow: var(--shadow);
     background: color-mix(in srgb, var(--panel) 78%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   }
-  .console .found-line { margin: 0 0 9px; text-align: center; }
-  .console .last { margin-top: 6px; }
-  .console .toolbar { margin-top: 8px; padding-top: 8px; border-top: 2px dashed color-mix(in srgb, var(--line) 25%, transparent); }
+  .console > * { margin: 0; }
+  .console .found-line { text-align: center; }
+  .console .toolbar { padding-top: var(--inner-pad); border-top: 2px dashed color-mix(in srgb, var(--line) 25%, transparent); }
   form { display: flex; gap: 0.55rem; }
   input {
     flex: 1; min-width: 0; font: inherit; font-size: 1.15rem; font-weight: 600; padding: 0.8rem 1rem;
-    border: 2px solid var(--line); border-radius: 16px; background: var(--panel); color: var(--ink); box-shadow: var(--shadow);
+    border: 2px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); box-shadow: var(--shadow);
   }
   input::placeholder { color: var(--muted); font-weight: 400; }
   input:focus { outline: none; border-color: var(--pink); }
 
   /* THE box: sunset border that slowly turns, glowing with the temperature of my last word */
   .wordbox {
-    align-items: center; gap: 0.35rem; padding: 6px 6px 6px 12px; border-radius: 24px; border: 3px solid transparent;
+    align-items: center; gap: 0.5rem; padding: 5px 5px 5px 12px; border-radius: var(--inner-radius); border: 3px solid transparent;
     background:
       linear-gradient(var(--panel), var(--panel)) padding-box,
       conic-gradient(from var(--wb-angle), #ff3d8b, #ffb938, #2dd4bf, #9479f5, #ff3d8b) border-box;
-    box-shadow: 5px 5px 0 var(--ink), 0 0 26px -6px var(--glow);
+    box-shadow: var(--shadow-sm), 0 0 26px -6px var(--glow);
     animation: wb-spin 7s linear infinite;
     transition: box-shadow 0.25s, scale 0.2s;
   }
-  .wordbox:focus-within { scale: 1.015; box-shadow: 5px 5px 0 var(--ink), 0 0 34px -2px var(--glow); animation-duration: 3s; }
-  .wb-ico { flex: none; font-size: 1.35rem; line-height: 1; width: 1.6rem; text-align: center; }
+  .wordbox:focus-within { box-shadow: var(--shadow-sm), 0 0 34px -2px var(--glow); animation-duration: 3s; }
+  .wb-ico { flex: none; font-size: 1.3rem; line-height: 1; width: 1.5rem; text-align: center; }
   .wordbox input {
-    border: 0; box-shadow: none; background: none; border-radius: 0; padding: 0.65rem 0.2rem;
+    border: 0; box-shadow: none; background: none; border-radius: 0; padding: 0.6rem 0;
     font-size: 1.3rem; font-weight: 800; letter-spacing: 0.01em;
   }
   .wordbox input::placeholder { font-weight: 600; font-style: italic; opacity: 0.8; }
   .wordbox input:focus { border: 0; }
   .wordbox .go {
-    display: inline-flex; align-items: center; gap: 0.3rem; align-self: stretch; padding: 0 1rem; border-radius: 18px;
-    background: linear-gradient(135deg, #ff6aa8, var(--pink) 60%, #d628c8); box-shadow: 3px 3px 0 var(--ink);
+    display: inline-flex; align-items: center; gap: 0.3rem; align-self: stretch; padding: 0 1.1rem; border-radius: 5px; border: 0;
+    background: linear-gradient(135deg, #ff6aa8, var(--pink) 60%, #d628c8); box-shadow: none;
   }
   .wordbox .go:disabled { opacity: 0.45; box-shadow: none; }
   .wordbox.typing .go { animation: wb-ready 1.1s ease-in-out infinite alternate; }
@@ -1063,30 +1100,35 @@
   @media (prefers-reduced-motion: reduce) { .wordbox, .wordbox.typing .go { animation: none; } }
   .go {
     font-family: var(--mono); font-weight: 700; letter-spacing: 0.08em; font-size: 1rem;
-    background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 16px; padding: 0 1.15rem;
+    background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 12px; padding: 0 1.15rem;
     box-shadow: var(--shadow); transition: translate 0.08s, box-shadow 0.08s;
   }
   .go:not(:disabled):active { translate: 3px 3px; box-shadow: none; }
   .go.wide { padding: 0.75rem 1.4rem; text-transform: uppercase; }
-  .feedback { min-height: 1.7rem; padding: 0.45rem 0.2rem 0; font-size: 0.9rem; line-height: 1.9; }
+  .feedback { padding: 0 0.2rem; font-size: 0.9rem; line-height: 1.9; }
+  .feedback:not(.on) { display: none; }
   .err { color: var(--pink); font-weight: 600; }
   .chip {
-    background: var(--panel); border: 2px solid var(--line); border-radius: 99px; padding: 0 0.65rem; margin: 0 0.1rem;
+    background: var(--panel); border: 2px solid var(--line); border-radius: 8px; padding: 0 0.65rem; margin: 0 0.1rem;
     font-weight: 700; box-shadow: var(--shadow-sm);
   }
-  .last { margin: 4px 0 0; padding: 0; }
-  .toolbar { display: flex; align-items: center; gap: 0.45rem; padding-top: 12px; }
+  .last { margin: 0; padding: 0; }
+  .toolbar { display: flex; align-items: center; gap: 0.5rem; }
   .count { flex: 1; font-size: 0.9rem; }
   .count strong { font-family: var(--mono); font-size: 1.1rem; }
   .pill {
-    background: var(--panel); border: 2px solid var(--line); border-radius: 99px; padding: 0.3rem 0.8rem;
-    font-size: 0.85rem; font-weight: 600;
+    background: var(--panel); border: 2px solid var(--line); border-radius: 8px; padding: 0.5rem 1rem;
+    font-size: 0.92rem; font-weight: 700;
   }
   .pill.danger { background: var(--pink); color: white; }
 
   /* ---------- tabs ---------- */
-  .tabs { display: flex; gap: 0.3rem; padding: 4px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 99px; margin-bottom: 12px; }
-  .tabs button { flex: 1; background: none; border: 0; border-radius: 99px; padding: 0.45rem 0.4rem; font-weight: 600; font-size: 0.9rem; color: var(--muted); }
+  .words-block {
+    margin: 0 0 var(--block-gap); padding: var(--inner-pad); border: 2px solid var(--line); border-radius: var(--block-radius);
+    box-shadow: var(--shadow); background: color-mix(in srgb, var(--panel) 78%, transparent);
+  }
+  .tabs { display: flex; gap: 0.3rem; padding: 4px; background: var(--panel-2); border: 2px solid var(--line); border-radius: var(--inner-radius); margin-bottom: var(--inner-pad); }
+  .tabs button { flex: 1; background: none; border: 0; border-radius: 5px; padding: 0.45rem 0.4rem; font-weight: 600; font-size: 0.9rem; color: var(--muted); }
   .tabs button[aria-selected="true"] { background: var(--ink); color: var(--panel); }
 
   .list { margin: 0; padding: 0; display: grid; gap: 6px; }
@@ -1094,7 +1136,7 @@
 
   /* ---------- tracks: sticky notes pinned on the wall ---------- */
   .tracks { display: grid; gap: 14px; }
-  .track { background: var(--panel-2); border: 2px solid var(--line); border-radius: 6px 18px 6px 18px; padding: 0.35rem 0.5rem 0.5rem; rotate: var(--tilt); box-shadow: var(--shadow-sm); }
+  .track { background: var(--panel-2); border: 2px solid var(--line); border-radius: 6px 12px 6px 12px; padding: 0.35rem 0.5rem 0.5rem; rotate: var(--tilt); box-shadow: var(--shadow-sm); }
   .track summary { cursor: pointer; display: flex; gap: 0.6rem; align-items: baseline; justify-content: space-between; padding: 0.35rem 0.3rem 0.45rem; }
   .track-name { font-weight: 800; font-size: 1.05rem; }
   .track .list { gap: 4px; }
@@ -1148,8 +1190,8 @@
   .legend .emoji { display: inline-block; width: 1.6rem; }
 
   .icon.active { background: var(--pink); color: white; }
-  .levels { display: flex; gap: 4px; padding: 4px; margin: 2px 0 10px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 99px; }
-  .levels button { flex: 1; border: 0; background: none; border-radius: 99px; padding: 0.4rem 0.3rem; font-weight: 700; font-size: 0.88rem; color: var(--muted); white-space: nowrap; }
+  .levels { display: flex; gap: 4px; padding: 4px; margin: 2px 0 10px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 8px; }
+  .levels button { flex: 1; border: 0; background: none; border-radius: 8px; padding: 0.4rem 0.3rem; font-weight: 700; font-size: 0.88rem; color: var(--muted); white-space: nowrap; }
   .levels button.on { background: var(--pink); color: white; box-shadow: var(--shadow-sm); }
   .levels.in-dialog { margin: 0; }
   /* collaborative room: the whole room screen switches from pink (défi) to teal */
@@ -1157,27 +1199,47 @@
   .found-line { margin: 0 0 6px; font-size: 0.78rem; color: var(--muted); }
   .found-line strong { color: var(--pink); font-family: var(--mono); }
   .found-line .sep { margin: 0 0.25rem; }
-  .room-back { background: none; border: 0; padding: 0.2rem 0; margin: 0 0 4px; font-weight: 700; color: var(--muted); display: inline-flex; align-items: center; gap: 0.3rem; }
-  .choose { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 4px; }
-  .mode-card {
-    position: relative; display: grid; align-content: start; gap: 0.15rem; min-width: 0; padding: 0.7rem 0.8rem 0.65rem; text-align: left;
-    border: 2px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-sm); color: #2a1440; transition: translate 0.1s;
+  /* which mode am I in: a coloured strip on top of the solo game and of a room */
+  .mode-bar {
+    display: flex; align-items: center; gap: 0.5rem; margin: 0 0 var(--block-gap); padding: 0.5rem;
+    border: 2px solid var(--line); border-radius: var(--block-radius); box-shadow: var(--shadow); color: #2a1440;
   }
-  /* colours: solo = lavender, rooms = sunny yellow (teal stays for collab, orange→pink for défi) */
-  .mode-card.solo { background: linear-gradient(150deg, #e4dbff, #b9a4ff 55%, #9479f5); rotate: -0.6deg; cursor: pointer; }
-  .mode-card.solo.on { box-shadow: var(--shadow-sm), 0 0 0 3px var(--panel), 0 0 0 5px #9479f5; }
-  .mode-card.multi { background: linear-gradient(150deg, #fff1b8, #ffd66b 55%, #ffb938); rotate: 0.6deg; padding: 0; }
-  .mode-card:active, .mc-main:active { translate: 2px 2px; }
-  .mc-main { display: grid; align-content: start; gap: 0.15rem; width: 100%; padding: 0.7rem 0.8rem 0.3rem; background: none; border: 0; text-align: left; color: inherit; cursor: pointer; }
-  .mc-head { display: flex; align-items: center; gap: 0.3rem; font-family: var(--mono); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; }
-  .mc-ico { display: inline-flex; font-size: 1rem; }
-  .mc-dot { margin-left: auto; width: 9px; height: 9px; border-radius: 50%; background: #2a1440; box-shadow: 0 0 0 3px rgb(255 255 255 / 0.5); }
-  .mc-title { font-weight: 900; font-size: 1.02rem; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 0.2rem; }
-  .mc-line { display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; font-weight: 600; min-height: 1.2em; }
-  .mc-foot { display: inline-flex; align-items: center; gap: 0.25rem; margin-top: 0.3rem; font-size: 0.78rem; font-weight: 800; }
-  .mc-all { display: block; width: 100%; padding: 0 0.8rem 0.6rem; background: none; border: 0; text-align: left; font-size: 0.72rem; font-weight: 700; color: #2a1440; opacity: 0.7; text-decoration: underline; cursor: pointer; }
+  /* same colours, icon and type as the home cards, so you know at once where you are */
+  .mode-bar.solo { background: linear-gradient(160deg, #ffe0cc, #ffab85); }
+  .mode-bar.group { background: linear-gradient(160deg, #fff7b0, #ffe14d); }
+  .mb-label { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; white-space: nowrap; min-width: 0; }
+  .mb-badge { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 50%; background: var(--panel); color: #2a1440; border: 2px solid var(--line); box-shadow: var(--shadow-sm); flex: none; }
+  .mb-text { display: grid; line-height: 1.05; text-align: left; }
+  .mb-text small { font-size: 0.68rem; font-weight: 700; opacity: 0.7; }
+  .mb-text strong { font-weight: 900; font-size: 1.1rem; text-transform: uppercase; }
+  .mb-back, .mb-switch { display: inline-flex; align-items: center; gap: 0.25rem; border: 0; border-radius: 8px; padding: 0.55rem 0.95rem; font-weight: 800; font-size: 0.88rem; cursor: pointer; white-space: nowrap; }
+  .mb-back { background: #2a1440; color: white; }
+  .mb-switch { background: rgb(255 255 255 / 0.6); color: #2a1440; }
+  @media (max-width: 400px) { .mb-text small { display: none; } .mb-text strong { font-size: 0.95rem; } }
+  /* ---------- home: choose how to play ---------- */
+  .home-hero { text-align: center; margin: 4px 0 var(--block-gap); }
+  .home-hero h2 { font-family: var(--script); font-weight: 400; font-size: 2.3rem; color: var(--pink); margin: 0; text-shadow: 1px 1px 0 var(--ink); }
+  .home-hero p { margin: 0.2rem 0 0; font-size: 0.85rem; }
+  .choose { display: grid; grid-template-columns: 1fr 1fr; gap: var(--block-gap); margin: 0 0 var(--block-gap); }
+  .mode-card {
+    position: relative; display: grid; justify-items: center; align-content: center; gap: 0.35rem; min-width: 0; min-height: 190px; padding: 1.1rem 0.8rem;
+    border: 2px solid var(--line); border-radius: var(--block-radius); box-shadow: var(--shadow); color: #2a1440; transition: translate 0.1s;
+    overflow: hidden; cursor: pointer; text-align: center;
+  }
+  /* Miami afternoon: solo = peach, rooms = lemon (teal stays for collab, orange→pink for défi) */
+  .mode-card.solo { background: linear-gradient(160deg, #ffe0cc, #ffab85); }
+  .mode-card.multi { background: linear-gradient(160deg, #fff7b0, #ffe14d); }
+  .mode-card::after { content: ""; position: absolute; right: -24px; bottom: -24px; width: 90px; height: 90px; border-radius: 50%; background: radial-gradient(rgb(255 255 255 / 0.6), transparent 70%); pointer-events: none; }
+  .mode-card:active { translate: 2px 2px; box-shadow: none; }
+  /* same look as the round header buttons, bigger */
+  .mc-badge {
+    display: grid; place-items: center; width: 4.4rem; height: 4.4rem; border-radius: 50%;
+    background: var(--panel); color: #2a1440; border: 2px solid var(--line); box-shadow: var(--shadow-sm); margin-bottom: 0.2rem;
+  }
+  .mc-title { font-family: var(--font); font-weight: 900; font-size: 1.4rem; line-height: 1.1; letter-spacing: 0.01em; text-transform: uppercase; color: #2a1440; }
+  .mc-line { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.82rem; font-weight: 700; min-height: 1.2em; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mc-foot { display: inline-flex; align-items: center; gap: 0.3rem; margin-top: 0.35rem; background: #2a1440; color: white; border-radius: 8px; padding: 0.7rem 1.4rem; font-size: 1rem; font-weight: 800; box-shadow: 2px 2px 0 rgb(42 20 64 / 0.35); }
   .live { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e; flex: none; }
-  .mc-below { margin: 0.5rem 0 0.4rem; text-align: center; font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--muted); }
   @media (max-width: 360px) { .choose { grid-template-columns: 1fr; } }
   .bug-emoji { display: inline-flex; color: var(--pink); }
   .home { color: inherit; text-decoration: none; }
@@ -1191,11 +1253,11 @@
   /* left: controls stacked; right: credits, wrapping inside their own column only */
   .foot { display: flex; align-items: flex-start; gap: 0.9rem; text-align: left; }
   .foot-controls { display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; flex: none; }
-  .theme-switch { display: flex; flex: none; gap: 2px; padding: 2px; width: fit-content; background: var(--panel-2); border-radius: 99px; }
-  .theme-switch button { display: grid; place-items: center; border: 0; background: none; border-radius: 99px; width: 1.75rem; height: 1.75rem; padding: 0; color: var(--muted); }
+  .theme-switch { display: flex; flex: none; gap: 2px; padding: 2px; width: fit-content; background: var(--panel-2); border-radius: 8px; }
+  .theme-switch button { display: grid; place-items: center; border: 0; background: none; border-radius: 8px; width: 1.75rem; height: 1.75rem; padding: 0; color: var(--muted); }
   .theme-switch button.on { background: var(--panel); color: var(--pink); box-shadow: var(--shadow-sm); }
   .reload {
-    display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem 0.2rem 0.45rem; border: 0; border-radius: 99px;
+    display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem 0.2rem 0.45rem; border: 0; border-radius: 8px;
     background: var(--panel-2); color: var(--muted); cursor: pointer; font-size: 0.7rem; font-weight: 600;
   }
   .reload:hover { color: var(--pink); }
@@ -1209,14 +1271,14 @@
   .credits .lic { white-space: nowrap; font-family: var(--mono); font-size: 0.58rem; border: 1px solid currentColor; border-radius: 4px; padding: 0 0.25rem; margin-left: 0.25rem; color: var(--muted); }
   .bug-card {
     display: flex; align-items: center; gap: 0.75rem; width: 100%; margin: 0 0 1.2rem; padding: 0.6rem 0.85rem; text-align: left;
-    background: var(--panel); border: 2px dashed var(--line); border-radius: 16px; color: var(--ink); rotate: 0.5deg; font-size: 0.95rem;
+    background: var(--panel); border: 2px dashed var(--line); border-radius: 12px; color: var(--ink); rotate: 0.5deg; font-size: 0.95rem;
   }
   .bug-card span:nth-child(2) { flex: 1; display: grid; line-height: 1.25; }
   .bug-card small { color: var(--muted); font-size: 0.8rem; }
 
   .install-card {
     display: flex; align-items: center; gap: 0.8rem; margin: 1rem 0 0.2rem; padding: 0.6rem 0.8rem;
-    background: var(--panel-2); border: 2px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-sm);
+    background: var(--panel-2); border: 2px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-sm);
     color: var(--ink); text-decoration: none; rotate: -0.6deg; transition: translate 0.1s;
   }
   .install-card:hover { translate: 0 -1px; }
@@ -1235,7 +1297,7 @@
   .vis label.on { border-color: var(--pink); background: var(--pink-soft); }
   .vis input { grid-row: span 2; accent-color: var(--pink); box-shadow: none; }
   .vis span { grid-column: 2; font-size: 0.78rem; color: var(--muted); }
-  .resume { margin-top: 0.6rem; background: var(--panel); border: 2px solid var(--line); border-radius: 99px; padding: 0.45rem 1rem; font-weight: 700; box-shadow: var(--shadow-sm); }
+  .resume { margin-top: 0.6rem; background: var(--panel); border: 2px solid var(--line); border-radius: 8px; padding: 0.45rem 1rem; font-weight: 700; box-shadow: var(--shadow-sm); }
 
   .toasts { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); translate: -50% 0; z-index: 20; display: grid; gap: 0.4rem; width: min(420px, calc(100vw - 32px)); pointer-events: none; }
   .toast {
@@ -1248,7 +1310,7 @@
   .other { background: var(--panel); border: 2px solid var(--line); border-radius: 10px; padding: 0.5rem 0.7rem; margin-bottom: 0.6rem; }
   .other-name { margin: 0 0 0.35rem; font-weight: 800; }
   .chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0; }
-  .wchip { background: var(--panel-2); border-radius: 99px; padding: 0.1rem 0.55rem; font-size: 0.82rem; }
+  .wchip { background: var(--panel-2); border-radius: 8px; padding: 0.1rem 0.55rem; font-size: 0.82rem; }
 
   @media (max-width: 380px) {
     h1 { font-size: 2.4rem; }

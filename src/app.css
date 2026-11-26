@@ -142,7 +142,7 @@ dialog h2 {
 }
 .go {
   font-family: var(--mono); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.95rem;
-  background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 16px; padding: 0.8rem 1.2rem;
+  background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 12px; padding: 0.8rem 1.2rem;
   box-shadow: var(--shadow); cursor: pointer;
 }
 .go:not(:disabled):active { translate: 3px 3px; box-shadow: none; }
@@ -162,7 +162,7 @@ dialog h2 {
 /* ---------- fx: corner stickers, win celebration, Jude-style wink (src/lib/fx.ts) ---------- */
 .fx-corner {
   position: fixed; z-index: 60; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom));
-  width: 116px; height: 116px; border-radius: 26px; border: 2px solid var(--line); box-shadow: var(--shadow);
+  width: 116px; height: 116px; border-radius: 12px; border: 2px solid var(--line); box-shadow: var(--shadow);
   display: grid; place-items: center; overflow: hidden; pointer-events: none;
   animation: fx-pop 2.2s cubic-bezier(.2,1.4,.4,1) both;
 }
@@ -175,6 +175,21 @@ dialog h2 {
 .fx-ice .fx-emoji { animation: fx-shiver 0.12s linear 6 0.25s; }
 .fx-ice .fx-glow { background: radial-gradient(circle, rgb(255 255 255 / 0.7), transparent 55%); animation: fx-frost 2s ease-out both; }
 .fx-ice .fx-bit { top: -20px; animation: fx-snow 1.7s linear both; }
+
+.fx-cool { background: linear-gradient(170deg, #b8f1ff, #38bdf8 55%, #1d6fd1); }
+.fx-cool .fx-emoji { animation: fx-bob 0.7s ease-in-out 3 alternate 0.2s; }
+.fx-cool .fx-glow { inset: auto -20% -10% -20%; height: 45%; background: radial-gradient(ellipse at 50% 100%, rgb(255 255 255 / 0.55), transparent 70%); animation: fx-tide 1.4s ease-in-out 2 alternate; }
+.fx-cool .fx-bit { bottom: 6px; animation: fx-rise 1.8s ease-out both; }
+
+.fx-mild { background: linear-gradient(170deg, #c9f7e0 0%, #6ee7b7 50%, #f6d38b 51%, #f2b866 100%); }
+.fx-mild .fx-emoji { transform-origin: 50% 100%; animation: fx-sway 0.9s ease-in-out 3 alternate 0.15s; }
+.fx-mild .fx-glow { background: radial-gradient(circle at 80% 15%, rgb(255 236 150 / 0.9), transparent 35%); }
+.fx-mild .fx-bit { top: -16px; animation: fx-fall 1.6s ease-in both; }
+
+.fx-warm { background: radial-gradient(circle at 50% 45%, #fff3b0, #ffd166 45%, #ffb020); }
+.fx-warm .fx-emoji { animation: fx-turn 2.2s linear both; filter: drop-shadow(0 0 8px #fff3b0); }
+.fx-warm .fx-glow { background: repeating-conic-gradient(rgb(255 255 255 / 0.4) 0 9deg, transparent 9deg 24deg); animation: fx-spin 4s linear both; }
+.fx-warm .fx-bit { top: 30%; animation: fx-twinkle 1s ease-in-out both; }
 
 .fx-hot { background: linear-gradient(160deg, #ffd166, #ff9f5a 55%, #ff6b4a); }
 .fx-hot .fx-emoji { animation: fx-sweat 0.5s ease-in-out 3 alternate 0.2s; }
@@ -192,6 +207,12 @@ dialog h2 {
   22%, 80% { transform: translateY(0) rotate(0) scale(1); opacity: 1; }
   100% { transform: translateY(20%) scale(0.85); opacity: 0; }
 }
+@keyframes fx-bob { to { transform: translateY(-6px) rotate(6deg); } }
+@keyframes fx-tide { to { transform: translateY(-12px) scaleX(1.1); } }
+@keyframes fx-sway { from { rotate: -9deg; } to { rotate: 9deg; } }
+@keyframes fx-fall { 0% { opacity: 0; transform: translateY(0) rotate(0); } 15% { opacity: 1; } 100% { opacity: 0.9; transform: translateY(130px) rotate(140deg); } }
+@keyframes fx-turn { to { rotate: 90deg; } }
+@keyframes fx-twinkle { 0%, 100% { opacity: 0; transform: scale(0.3); } 50% { opacity: 1; transform: scale(1.2) translateY(-14px); } }
 @keyframes fx-shiver { 25% { translate: -3px 1px; } 75% { translate: 3px -1px; } }
 @keyframes fx-frost { from { scale: 0.2; opacity: 0; } 40% { opacity: 1; } to { scale: 1; opacity: 0.5; } }
 @keyframes fx-snow { 0% { opacity: 0; transform: translateY(0) rotate(0); } 15% { opacity: 1; } 100% { opacity: 0.8; transform: translateY(150px) rotate(200deg); } }
@@ -213,7 +234,7 @@ dialog h2 {
 }
 .fx-stamp {
   position: relative; display: grid; justify-items: center; gap: 0.1rem; padding: 1rem 1.6rem 1.1rem;
-  background: var(--panel); border: 3px solid var(--line); border-radius: 22px; box-shadow: 6px 6px 0 var(--ink), 0 0 50px rgb(255 61 139 / 0.6);
+  background: var(--panel); border: 3px solid var(--line); border-radius: 12px; box-shadow: 6px 6px 0 var(--ink), 0 0 50px rgb(255 61 139 / 0.6);
   animation: fx-stamp 3.4s cubic-bezier(.2,1.5,.35,1) both;
 }
 .fx-kicker { font-family: var(--mono); font-weight: 700; text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.8rem; color: var(--muted); }
@@ -247,7 +268,7 @@ dialog h2 {
 .fx-spot { position: absolute; bottom: 0; width: 230px; height: 40px; border-radius: 50%; background: radial-gradient(rgb(255 209 102 / 0.7), transparent 70%); z-index: -1; }
 .fx-bubble {
   position: relative; margin-bottom: 0.4rem; padding: 0.5rem 0.9rem; background: white; color: #1d1b2e; border: 2px solid #1d1b2e;
-  border-radius: 16px; box-shadow: 3px 3px 0 #1d1b2e; font-weight: 900; font-size: 1.15rem; text-align: center; display: grid;
+  border-radius: 12px; box-shadow: 3px 3px 0 #1d1b2e; font-weight: 900; font-size: 1.15rem; text-align: center; display: grid;
   animation: fx-bubble 4.2s ease-out both;
 }
 .fx-bubble small { font-weight: 600; font-size: 0.68rem; color: #6b6880; }
