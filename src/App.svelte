@@ -69,7 +69,10 @@
   let joinName = $state("");
   let roomName = $state("");
   let roomVisibility = $state<Visibility>("public");
-  let soloLevel = $state<string>(SHOW_LEVELS ? (() => { try { return localStorage.getItem("semantique:level") ?? "adult"; } catch { return "adult"; } })() : "adult");
+  const savedLevel = () => SHOW_LEVELS ? (() => { try { return localStorage.getItem("semantique:level") ?? "adult"; } catch { return "adult"; } })() : "adult";
+  let soloLevel = $state<string>(savedLevel());
+  /** Bonus word (easy rooms): an older easy word played alone right after finding the room's word; the code of the room to go back to. */
+  let bonusFrom = $state<string | null>(null);
   let createLevel = $state("adult");
   /** In a room, its level; otherwise the one picked on this device. */
   const playLevel = $derived(session && snap ? snap.level : soloLevel);
@@ -221,6 +224,7 @@
   }
 
   async function enterRoom(s: Session) {
+    endBonus();
     disconnect?.();
     session = s;
     saveSession(s);
@@ -290,14 +294,47 @@
     roomWords = [];
   }
 
+  /** Out of the bonus words: back to the solo level of this device. */
+  function endBonus() {
+    if (!bonusFrom) return false;
+    bonusFrom = null;
+    soloLevel = savedLevel();
+    return true;
+  }
+
+  /** Easy rooms: another word right away, picked among the older easy words not finished on this device. */
+  async function playBonus() {
+    const from = bonusFrom ?? session?.code;
+    if (!meta || !from) return;
+    const fresh: number[] = [], started: number[] = [];
+    for (let n = 1; n < meta.current; n++) {
+      const st = loadState(LANG, "kid", n);
+      if (st.status !== "playing") continue;
+      (st.guesses.length ? started : fresh).push(n);
+    }
+    const pool = fresh.length ? fresh : started;
+    if (!pool.length) return toast("Plus de mot bonus pour l'instant, reviens au prochain mot !");
+    const n = pool[Math.floor(Math.random() * pool.length)];
+    if (session) closeRoom();
+    bonusFrom = from;
+    soloLevel = "kid";
+    page = "game";
+    if (location.pathname !== "/solo") history.pushState(null, "", "/solo");
+    await openRound(n);
+    scrollTo({ top: 0 });
+    await tick();
+    inputEl?.focus({ preventScroll: true });
+  }
+
   async function goPage(p: "home" | "game" | "rooms", push = true) {
     const wasRoom = !!session;
+    const wasBonus = endBonus();
     if (wasRoom) closeRoom();
     page = p;
     const path = p === "rooms" ? "/rooms" : p === "game" ? "/solo" : "/";
     if (push && location.pathname !== path) history.pushState(null, "", path);
     scrollTo({ top: 0 });
-    if (p === "game" && meta && wasRoom) await openRound(meta.current); // back to the solo game
+    if (p === "game" && meta && (wasRoom || wasBonus)) await openRound(meta.current); // back to the solo game
   }
 
   onMount(() => {
@@ -493,7 +530,7 @@
       const me = session?.name ?? lastName();
       celebrate(guess.word, { tries: game.guesses.filter((o) => !o.hint).length, sweetheart: isSweetheart(me) ? me : null });
       finish("won");
-      if (!fromTeammate) {
+      if (!fromTeammate && !bonusFrom) { // bonus words are older rounds: not counted
         const mine = game.guesses.filter((o) => !o.by || o.by === session?.name); // collab: only my own words
         const played = { tries: mine.filter((o) => !o.hint).length, hints: mine.filter((o) => o.hint).length };
         reportFound(LANG, playLevel, round, guess.word, played).then((s) => s && (foundStats = s));
@@ -737,15 +774,22 @@
         {/each}
       </div>
       {/if}
+      {#if bonusFrom}
+      <div class="mode-bar group">
+        <button class="mb-back" onclick={() => bonusFrom && enterSaved(bonusFrom)}><Icon name="arrow-left" /> la room</button>
+        <span class="mb-label"><span class="mb-badge" aria-hidden="true">🎈</span><span class="mb-text"><small>mot bonus</small><strong>facile</strong></span></span>
+      </div>
+      {:else}
       <div class="mode-bar solo">
         <button class="mb-back" onclick={() => goPage("home")}><Icon name="arrow-left" /> accueil</button>
         <span class="mb-label"><span class="mb-badge"><Icon name="user" size="1.3rem" /></span><span class="mb-text"><small>tu joues</small><strong>seul·e</strong></span></span>
         <button class="mb-switch" onclick={() => goPage("rooms")}><Icon name="users" size="1rem" /> à plusieurs</button>
       </div>
+      {/if}
     {/if}
 
-    {#if newWordReady || round !== meta.current}
-      <button class="banner" onclick={goToLatest}>
+    {#if newWordReady || (round !== meta.current && !bonusFrom)}
+      <button class="banner" onclick={() => (bonusFrom ? enterSaved(bonusFrom) : goToLatest())}>
         <span class="bn-ico" aria-hidden="true">🌴</span>
         <span class="bn-text"><strong>{newWordReady ? "Nouveau mot dispo !" : "Le mot en cours t'attend"}</strong><small>{newWordReady ? "le mot a changé, à toi de jouer" : `mot de ${roundLabel(meta.current)}`}</small></span>
         <span class="bn-go">jouer <Icon name="arrow-right" /></span>
@@ -812,6 +856,9 @@
             <p>ton meilleur : <strong>{best?.word ?? "aucun"}</strong>{best ? ` (n°${best.rank})` : ""}</p>
           {/if}
           <div class="actions">
+            {#if bonusFrom || (session && snap?.level === "kid" && game.status === "won")}
+              <button class="go wide bonus" onclick={playBonus}>🎈 encore un mot !</button>
+            {/if}
             <button class="go wide" onclick={share}>{copied ? "copié ✓" : "partager"}</button>
             <span class="muted small">prochain mot dans <strong class="mono">{countdown}</strong> ⏱</span>
           </div>
@@ -1165,6 +1212,7 @@
     text-shadow: 2px 2px 0 var(--ink), 4px 4px 0 var(--teal), var(--title-glow);
   }
   .end.won { background: linear-gradient(160deg, var(--panel), var(--pink-soft)); }
+  .go.bonus { background: linear-gradient(160deg, #fff7b0, #ffe14d); color: #2a1440; }
   .actions { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin-top: 0.9rem; }
 
   .top h2, dialog h2 { font-family: var(--script); font-weight: 400; font-size: 2rem; color: var(--pink); margin: 1.6rem 0 0.4rem; text-shadow: 1px 1px 0 var(--ink); }
