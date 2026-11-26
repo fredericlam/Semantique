@@ -743,16 +743,6 @@
 
 
     <section class="console">
-      {#if foundStats}
-        <p class="found-line">
-          {#if foundStats.hour}
-            🎯 <strong>{foundStats.hour}</strong> {foundStats.hour > 1 ? "personnes ont" : "personne a"} trouvé le mot de {roundLabel(round)}
-          {:else}
-            🎯 personne n'a encore trouvé le mot de {roundLabel(round)}
-          {/if}
-          <span class="sep">·</span> <strong>{foundStats.todayFinds}</strong> mot{foundStats.todayFinds > 1 ? "s" : ""} trouvé{foundStats.todayFinds > 1 ? "s" : ""} aujourd'hui
-        </p>
-      {/if}
       {#if !over}
         <form class="wordbox" class:typing={!!input.trim()} style:--glow={last ? heatColor(temperature(last.rank, meta.vocabSize)) : "#ff3d8b"} onsubmit={(e) => { e.preventDefault(); submit(); }}>
           <span class="wb-ico" aria-hidden="true">{last ? level(last.rank).emoji : "✨"}</span>
@@ -1062,7 +1052,6 @@
     background: color-mix(in srgb, var(--panel) 78%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   }
   .console > * { margin: 0; }
-  .console .found-line { text-align: center; }
   .console .toolbar { padding-top: var(--inner-pad); border-top: 2px dashed color-mix(in srgb, var(--line) 25%, transparent); }
   form { display: flex; gap: 0.55rem; }
   input {
@@ -1200,9 +1189,6 @@
   .lvl-hint { margin: 0.4rem 0 0; font-size: 0.75rem; color: var(--muted); }
   /* collaborative room: the whole room screen switches from pink (défi) to teal */
   .page.collab { --pink: #0e9f9a; --pink-soft: #c8f2ee; --sun-b: #2dd4bf; }
-  .found-line { margin: 0 0 6px; font-size: 0.78rem; color: var(--muted); }
-  .found-line strong { color: var(--pink); font-family: var(--mono); }
-  .found-line .sep { margin: 0 0.25rem; }
   /* which mode am I in: a coloured strip on top of the solo game and of a room */
   .mode-bar {
     display: flex; align-items: center; gap: 0.5rem; margin: 0 0 var(--block-gap); padding: 0.5rem;

@@ -54,8 +54,9 @@
 <section class="board">
   <header>
     <div class="title">
-      <span class="room-name">{snap.name}{#if SHOW_LEVELS || isSpecialLevel(snap.level)} <span class="lvl"><LevelTag level={snap.level} /></span>{/if}</span>
+      <span class="room-name">{snap.name}</span>
       <span class="meta">
+        {#if SHOW_LEVELS || isSpecialLevel(snap.level)}<span class="lvl"><LevelTag level={snap.level} /></span>{/if}
         <span class="dot" class:on={connected} title={connected ? "en direct" : "reconnexion…"}></span>
         <span class="code" title="Code de la room">{snap.code}</span>
         {#if isOwner}
@@ -64,9 +65,9 @@
           <span title={snap.visibility === "public" ? "Room publique" : "Room privée"}>{snap.visibility === "public" ? "🌍" : "🔒"}</span>
         {/if}
         {#if snap.owner}<span class="owner">· par {snap.owner}</span>{/if}
+        <button class="invite" onclick={onshare}>🔗 inviter</button>
       </span>
     </div>
-    <button class="invite" onclick={onshare}>🔗 inviter</button>
   </header>
 
   <div class="modes" role="radiogroup" aria-label="Mode de jeu de la room">
@@ -76,6 +77,19 @@
       title="Collaboratif : tout le monde voit les mots de tous, le premier qui trouve fait gagner l'équipe">🤝 collab</button>
   </div>
 
+  <details class="people">
+  <summary>
+    <span class="chips">
+      {#each live as p (p.name)}
+        {@const n = p.now}
+        <span class="chip" class:me={p.name === me} class:won={n?.status === "won"} title={p.online ? "en ligne" : "hors ligne"}>
+          <span class="online" class:on={p.online}></span>{p.name}
+          {#if n?.status === "won"}🎯{:else if n?.status === "gaveup"}🏳️{:else if n && n.tries}{level(n.best ?? 99999).emoji}{/if}
+        </span>
+      {/each}
+    </span>
+    <span class="sum">🎯 {found}/{snap.players.length} <span class="chev" aria-hidden="true">▾</span></span>
+  </summary>
   <div class="seg" role="tablist">
     <button role="tab" aria-selected={tab === "live"} onclick={() => (tab = "live")}>ce mot · {found}/{snap.players.length} 🎯</button>
     <button role="tab" aria-selected={tab === "points"} onclick={() => (tab = "points")} title="5 / 3 / 2 pts aux 3 premiers à trouver, 1 pt ensuite, +1 sans indice">classement</button>
@@ -138,6 +152,7 @@
       {/each}
     </ol>
   {/if}
+  </details>
 </section>
 
 <style>
@@ -150,17 +165,18 @@
   .board > * { margin: 0; }
   header { display: flex; align-items: center; gap: 0.6rem; }
   .title { display: grid; gap: 0.15rem; min-width: 0; flex: 1; }
-  .room-name { font-weight: 900; font-size: 1.25rem; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .room-name { font-weight: 900; font-size: 1.6rem; line-height: 1.1; color: var(--pink); text-shadow: 1px 1px 0 var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lvl { display: inline-flex; font-size: 0.75rem; font-weight: 700; background: var(--panel-2); border-radius: 8px; padding: 0.1rem 0.5rem; vertical-align: 0.2em; }
-  .meta { display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; color: var(--muted); min-width: 0; }
+  .meta { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--muted); min-width: 0; }
+  .code { font-size: 0.72rem; }
   .code { font-family: var(--mono); font-weight: 700; letter-spacing: 0.12em; color: var(--ink); }
   .owner { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
   .dot.on { background: #22c55e; box-shadow: 0 0 8px #22c55e; animation: blink 2s infinite; }
   @keyframes blink { 50% { opacity: 0.5; } }
   .vis { background: var(--panel-2); border: 0; border-radius: 5px; padding: 0.05rem 0.35rem; cursor: pointer; }
-  .invite { flex: none; background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 8px; padding: 0.55rem 0.9rem; font-weight: 800; font-size: 0.9rem; box-shadow: var(--shadow-sm); white-space: nowrap; }
-  .invite:active { translate: 2px 2px; box-shadow: none; }
+  .invite { flex: none; margin-left: auto; background: none; border: 0; color: var(--muted); font-weight: 700; font-size: 0.78rem; padding: 0; cursor: pointer; white-space: nowrap; text-decoration: underline; }
+  .invite:hover { color: var(--pink); }
 
   .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 8px; }
   .modes button { border: 0; border-radius: 5px; padding: 0.5rem; background: none; color: var(--muted); font-weight: 800; font-size: 0.92rem; cursor: pointer; }
@@ -172,7 +188,19 @@
   .seg button { flex: 1; border: 0; background: none; border-radius: 5px; padding: 0.4rem; font-size: 0.82rem; font-weight: 700; color: var(--muted); }
   .seg button[aria-selected="true"] { background: var(--ink); color: var(--panel); }
 
-  .players { list-style: none; padding: 0; display: grid; gap: 2px; }
+  /* the players, folded into one line of chips; open for the live list and the standings */
+  .people summary { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; list-style: none; }
+  .people summary::-webkit-details-marker { display: none; }
+  .people[open] summary { margin-bottom: 12px; }
+  .people[open] .seg { margin-bottom: 8px; }
+  .chips { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; font-weight: 700; background: var(--panel-2); border-radius: 5px; padding: 0.15rem 0.45rem; white-space: nowrap; }
+  .chip.me { background: var(--pink-soft); }
+  .chip.won { color: var(--pink); }
+  .sum { flex: none; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+  .chev { display: inline-block; color: var(--muted); transition: rotate 0.15s; }
+  .people[open] .chev { rotate: 180deg; }
+  .players { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; }
   .players li { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.45rem; border-radius: 8px; font-size: 0.92rem; min-height: 2.2rem; }
   .players li.me { background: var(--pink-soft); }
   .online { width: 7px; height: 7px; border-radius: 50%; background: var(--track, #ccc); flex: none; opacity: 0.5; }

@@ -75,9 +75,9 @@
 </script>
 
 <section class="rooms-page">
-  <button class="back" onclick={onback}><Icon name="arrow-left" /> retour au jeu</button>
+  <button class="back" onclick={onback}><Icon name="arrow-left" /> accueil</button>
   <h2>les rooms</h2>
-  <p class="lead">Toutes les rooms jouent <strong>le même mot</strong> que tout le monde, solo compris, avec un nouveau mot toutes les 3 heures. Les rooms <strong>🎒 facile</strong> ont leur propre mot, plus simple, partagé entre elles. La room ajoute la progression en direct de tes potes et un classement entre vous.</p>
+  <p class="lead">Le même mot que tout le monde, en direct avec tes potes.</p>
 
   {#if currentRoom}
     <button class="current" onclick={onresume}>
@@ -182,7 +182,7 @@
   .current {
     position: relative; display: flex; align-items: center; gap: 0.8rem; width: 100%; margin: 8px 0 1.1rem;
     padding: 1.15rem 0.9rem 0.85rem; text-align: left; overflow: hidden;
-    background: linear-gradient(100deg, var(--sun-a), var(--pink)); color: #2a1440;
+    background: linear-gradient(160deg, #fff7b0, #ffe14d); color: #2a1440; /* the "à plusieurs" lemon of the home card */
     border: 2px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); font: inherit; cursor: pointer;
   }
   /* diagonal ribbon across the top-left corner */
