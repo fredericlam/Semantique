@@ -41,7 +41,8 @@ export interface Snapshot {
 export interface PastRound {
   round: number;
   word: string | null;
-  players: { name: string; status: PlayerRound["status"]; tries: number; hints: number; place: number | null; guesses: { word: string; rank: number; hint: boolean }[] }[];
+  players: { name: string; status: PlayerRound["status"]; tries: number; hints: number; place: number | null }[];
+  words: { word: string; rank: number; by: { name: string; n: number; hint: boolean }[] }[]; // closest first
 }
 
 export interface RoomGuess extends Entry {
@@ -479,16 +480,25 @@ export class Room extends DurableObject<Env> {
     const list = this.sql.exec<{ round: number }>(
       "SELECT DISTINCT round FROM guesses WHERE round <= ? ORDER BY round DESC LIMIT ?", top, limit + 1).toArray().map((r) => r.round);
     const words = await gameData(this.env.DATA).schedule(L, this.level(L));
+    const people = this.sql.exec<{ key: string; name: string }>("SELECT key, name FROM players").toArray();
+    const nameOf = new Map(people.map((p) => [p.key, p.name]));
     const rounds = list.slice(0, limit).map((round): PastRound => {
-      const players = this.sql.exec<{ key: string; name: string }>("SELECT key, name FROM players ORDER BY joined").toArray().map((p) => {
-        const guesses = this.sql.exec<{ word: string; rank: number; hint: number }>(
-          "SELECT word, rank, hint FROM guesses WHERE round = ? AND player = ? ORDER BY rank", round, p.key).toArray()
-          .map((g) => ({ word: g.word, rank: g.rank, hint: g.hint === 1 }));
+      // every word proposed in the room, closest first, with who proposed it and at which try
+      const byWord = new Map<string, PastRound["words"][number]>();
+      for (const g of this.sql.exec<{ player: string; word: string; rank: number; hint: number; n: number }>(
+        "SELECT player, word, rank, hint, n FROM guesses WHERE round = ? ORDER BY rank, at", round)) {
+        const name = nameOf.get(g.player);
+        if (!name) continue;
+        const w = byWord.get(g.word) ?? { word: g.word, rank: g.rank, by: [] };
+        w.by.push({ name, n: g.n, hint: g.hint === 1 });
+        byWord.set(g.word, w);
+      }
+      const players = people.map((p) => {
         const res = this.result(round, p.key);
-        return { name: p.name, status: res?.status ?? "playing", tries: res?.tries ?? 0, hints: res?.hints ?? 0, place: res?.place ?? null, guesses };
-      }).filter((p) => p.guesses.length)
-        .sort((a, b) => (a.place ?? Infinity) - (b.place ?? Infinity) || (a.guesses[0]?.rank ?? Infinity) - (b.guesses[0]?.rank ?? Infinity));
-      return { round, word: words?.[round - 1] ?? null, players };
+        return res ? { name: p.name, status: res.status, tries: res.tries, hints: res.hints, place: res.place } : null;
+      }).filter((p) => p !== null)
+        .sort((a, b) => (a.place ?? Infinity) - (b.place ?? Infinity) || a.tries - b.tries);
+      return { round, word: words?.[round - 1] ?? null, players, words: [...byWord.values()] };
     });
     return { rounds, more: list.length > limit };
   }

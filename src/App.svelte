@@ -18,7 +18,7 @@
     roomReveal, roomSetVisibility, roomKick, forgetRoom, RoomError, roomState, savedSession, saveSession, rememberRoom, myRooms, roomRename, roomSetMode, type RoomGuess, type Session, type Snapshot, type Visibility,
   } from "./lib/room.ts";
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
-  import { LEVELS, level, temperature } from "./lib/heat.ts";
+  import { LEVELS, heatColor, level, temperature } from "./lib/heat.ts";
   import {
     buildTracks, computeStats, fetchGuess, fetchHistory, fetchStats, reportFound, type FoundStats, SHOW_LEVELS, fetchHint, fetchMeta, fetchTop, loadState, nextHintRank, saveState, LEVEL_INFO, levelLabel,
     type GameState, type Guess, type Meta,
@@ -299,6 +299,31 @@
     addEventListener("popstate", onPop);
     return () => removeEventListener("popstate", onPop);
   });
+
+  /** Home "à plusieurs" card: my last room, with who's online right now. */
+  let homeRoom = $state<{ code: string; name: string; online: number; players: number | null } | null>(null);
+  async function loadHomeRoom() {
+    const r = lastOpened();
+    if (!r) return (homeRoom = null);
+    homeRoom = { ...r, online: 0, players: null };
+    try {
+      const s = await roomState(LANG, r.code);
+      homeRoom = { code: r.code, name: s.name, online: s.players.filter((p) => p.online).length, players: s.players.length };
+    } catch {
+      homeRoom = null; // expired or gone
+    }
+  }
+  $effect(() => {
+    if (page === "game" && !session) loadHomeRoom();
+  });
+
+  /** Solo card: back to the word of the moment, focus the input. */
+  async function playSolo() {
+    if (meta && round !== meta.current) await goToLatest();
+    await tick();
+    inputEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+    inputEl?.focus({ preventScroll: true });
+  }
 
   /** The room I opened last (for the "reprendre" card of the hub). */
   function lastOpened() {
@@ -631,11 +656,36 @@
         {/each}
       </div>
       {/if}
-      <button class="room-cta" onclick={() => goPage("rooms")}>
-        <span class="cta-emoji"><Icon name="users" size="1.9rem" /></span>
-        <span class="cta-text"><strong>Rejoins une room</strong><small>joue à plusieurs sur le même mot</small></span>
-        <span class="install-arrow"><Icon name="arrow-right" /></span>
-      </button>
+      <div class="choose" aria-label="Comment tu joues ?">
+        <button class="mode-card solo" class:on={!session} onclick={playSolo} aria-current="true">
+          <span class="mc-head"><span class="mc-ico">🧍</span> seul·e <span class="mc-dot" aria-hidden="true"></span></span>
+          <span class="mc-title">mot de {roundLabel(round)}</span>
+          <span class="mc-line">
+            {#if game.status === "won"}🎯 trouvé en {tries}
+            {:else if game.status === "gaveup"}🏳️ abandon
+            {:else if game.guesses.length}⏸ {tries} essai{tries > 1 ? "s" : ""}{#if best} · {level(best.rank).emoji} {temperature(best.rank, meta.vocabSize).toFixed(0)}°{/if}
+            {:else}pas encore joué{/if}
+          </span>
+          {#if round === meta.current}<span class="mc-foot mono">⏱ {countdown}</span>
+          {:else}<span class="mc-foot">mot en cours →</span>{/if}
+        </button>
+        <div class="mode-card multi">
+          <button class="mc-main" onclick={() => (homeRoom ? enterSaved(homeRoom.code) : goPage("rooms"))}>
+            <span class="mc-head"><span class="mc-ico"><Icon name="users" size="1.15rem" /></span> à plusieurs</span>
+            {#if homeRoom}
+              <span class="mc-title">« {homeRoom.name} »</span>
+              <span class="mc-line">{#if homeRoom.online}<span class="live"></span> {homeRoom.online} en ligne{:else}{homeRoom.players ?? ""} joueur{(homeRoom.players ?? 0) > 1 ? "s" : ""}{/if}</span>
+              <span class="mc-foot">reprendre <Icon name="arrow-right" /></span>
+            {:else}
+              <span class="mc-title">avec tes potes</span>
+              <span class="mc-line">le même mot, en défi ou en équipe</span>
+              <span class="mc-foot">rejoindre ou créer <Icon name="arrow-right" /></span>
+            {/if}
+          </button>
+          {#if homeRoom}<button class="mc-all" onclick={() => goPage("rooms")}>toutes les rooms</button>{/if}
+        </div>
+      </div>
+      <p class="mc-below">▼ ta partie solo</p>
     {/if}
 
     {#if newWordReady || round !== meta.current}
@@ -644,20 +694,21 @@
       </button>
     {/if}
 
-    {#if foundStats}
-      <p class="found-line">
-        {#if foundStats.hour}
-          🎯 <strong>{foundStats.hour}</strong> {foundStats.hour > 1 ? "personnes ont" : "personne a"} trouvé le mot de {roundLabel(round)}
-        {:else}
-          🎯 personne n'a encore trouvé le mot de {roundLabel(round)}
-        {/if}
-        <span class="sep">·</span> <strong>{foundStats.todayFinds}</strong> mot{foundStats.todayFinds > 1 ? "s" : ""} trouvé{foundStats.todayFinds > 1 ? "s" : ""} aujourd'hui
-      </p>
-    {/if}
 
     <section class="console">
+      {#if foundStats}
+        <p class="found-line">
+          {#if foundStats.hour}
+            🎯 <strong>{foundStats.hour}</strong> {foundStats.hour > 1 ? "personnes ont" : "personne a"} trouvé le mot de {roundLabel(round)}
+          {:else}
+            🎯 personne n'a encore trouvé le mot de {roundLabel(round)}
+          {/if}
+          <span class="sep">·</span> <strong>{foundStats.todayFinds}</strong> mot{foundStats.todayFinds > 1 ? "s" : ""} trouvé{foundStats.todayFinds > 1 ? "s" : ""} aujourd'hui
+        </p>
+      {/if}
       {#if !over}
-        <form onsubmit={(e) => { e.preventDefault(); submit(); }}>
+        <form class="wordbox" class:typing={!!input.trim()} style:--glow={last ? heatColor(temperature(last.rank, meta.vocabSize)) : "#ff3d8b"} onsubmit={(e) => { e.preventDefault(); submit(); }}>
+          <span class="wb-ico" aria-hidden="true">{last ? level(last.rank).emoji : "✨"}</span>
           <input
             bind:this={inputEl}
             bind:value={input}
@@ -666,7 +717,7 @@
             autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send"
             aria-label="Ton essai"
           />
-          <button type="submit" class="go" disabled={busy || !input.trim()} aria-label="Essayer">GO</button>
+          <button type="submit" class="go" disabled={busy || !input.trim()} aria-label="Essayer">GO <Icon name="arrow-right" /></button>
         </form>
 
         <div class="feedback" aria-live="polite">
@@ -759,14 +810,6 @@
           {/each}
         </ul>
       {/if}
-    {:else if !over && !session}
-      <div class="note">
-        <span class="tape" aria-hidden="true"></span>
-        <p><strong>Trouve le mot secret.</strong> Chaque essai te dit à quel point tu en es proche <em>par le sens</em>.</p>
-        <p class="same-word">🌍 Un nouveau mot toutes les 3 heures (0h, 3h, 6h… 21h), <strong>le même pour tout le monde</strong>, en solo comme dans toutes les rooms.</p>
-        <p class="scale">🧊 🌊 🌴 ☀️ 🥵 🔥 🎯</p>
-        <p class="muted">Commence large (un animal, une émotion, un objet…), puis resserre autour des pistes chaudes.</p>
-      </div>
     {/if}
 
     {#if over && roomWords.length}
@@ -974,10 +1017,15 @@
   .page { padding-top: env(safe-area-inset-top); }
 
   /* ---------- sticky console ---------- */
+  /* the play panel: stats line, the word box, feedback, last word and actions, all in one card */
   .console {
-    position: sticky; top: 0; z-index: 3; padding: 10px 0 8px; margin: 0 -16px 12px; padding-inline: 16px;
-    background: linear-gradient(180deg, var(--sky-top) 82%, transparent);
+    position: sticky; top: 8px; z-index: 3; margin: 4px 0 14px; padding: 10px 12px 10px;
+    border: 2px solid var(--line); border-radius: 28px; box-shadow: var(--shadow);
+    background: color-mix(in srgb, var(--panel) 78%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   }
+  .console .found-line { margin: 0 0 9px; text-align: center; }
+  .console .last { margin-top: 6px; }
+  .console .toolbar { margin-top: 8px; padding-top: 8px; border-top: 2px dashed color-mix(in srgb, var(--line) 25%, transparent); }
   form { display: flex; gap: 0.55rem; }
   input {
     flex: 1; min-width: 0; font: inherit; font-size: 1.15rem; font-weight: 600; padding: 0.8rem 1rem;
@@ -985,6 +1033,34 @@
   }
   input::placeholder { color: var(--muted); font-weight: 400; }
   input:focus { outline: none; border-color: var(--pink); }
+
+  /* THE box: sunset border that slowly turns, glowing with the temperature of my last word */
+  .wordbox {
+    align-items: center; gap: 0.35rem; padding: 6px 6px 6px 12px; border-radius: 24px; border: 3px solid transparent;
+    background:
+      linear-gradient(var(--panel), var(--panel)) padding-box,
+      conic-gradient(from var(--wb-angle), #ff3d8b, #ffb938, #2dd4bf, #9479f5, #ff3d8b) border-box;
+    box-shadow: 5px 5px 0 var(--ink), 0 0 26px -6px var(--glow);
+    animation: wb-spin 7s linear infinite;
+    transition: box-shadow 0.25s, scale 0.2s;
+  }
+  .wordbox:focus-within { scale: 1.015; box-shadow: 5px 5px 0 var(--ink), 0 0 34px -2px var(--glow); animation-duration: 3s; }
+  .wb-ico { flex: none; font-size: 1.35rem; line-height: 1; width: 1.6rem; text-align: center; }
+  .wordbox input {
+    border: 0; box-shadow: none; background: none; border-radius: 0; padding: 0.65rem 0.2rem;
+    font-size: 1.3rem; font-weight: 800; letter-spacing: 0.01em;
+  }
+  .wordbox input::placeholder { font-weight: 600; font-style: italic; opacity: 0.8; }
+  .wordbox input:focus { border: 0; }
+  .wordbox .go {
+    display: inline-flex; align-items: center; gap: 0.3rem; align-self: stretch; padding: 0 1rem; border-radius: 18px;
+    background: linear-gradient(135deg, #ff6aa8, var(--pink) 60%, #d628c8); box-shadow: 3px 3px 0 var(--ink);
+  }
+  .wordbox .go:disabled { opacity: 0.45; box-shadow: none; }
+  .wordbox.typing .go { animation: wb-ready 1.1s ease-in-out infinite alternate; }
+  @keyframes wb-spin { to { --wb-angle: 360deg; } }
+  @keyframes wb-ready { to { scale: 1.06; } }
+  @media (prefers-reduced-motion: reduce) { .wordbox, .wordbox.typing .go { animation: none; } }
   .go {
     font-family: var(--mono); font-weight: 700; letter-spacing: 0.08em; font-size: 1rem;
     background: var(--pink); color: white; border: 2px solid var(--line); border-radius: 16px; padding: 0 1.15rem;
@@ -1029,8 +1105,6 @@
     background: var(--panel); border: 2px solid var(--line); border-radius: 4px; padding: 0.9rem 1.1rem 0.6rem;
     rotate: -0.8deg; box-shadow: var(--shadow); margin-top: 14px;
   }
-  .note p { margin: 0 0 0.7rem; line-height: 1.45; }
-  .scale { font-size: 1.4rem; letter-spacing: 0.25em; }
   .tape {
     position: absolute; top: -12px; left: 50%; width: 96px; height: 24px; translate: -50% 0; rotate: -3deg;
     background: repeating-linear-gradient(45deg, var(--tape) 0 8px, color-mix(in srgb, var(--tape) 70%, white) 8px 16px);
@@ -1083,22 +1157,30 @@
   .found-line { margin: 0 0 6px; font-size: 0.78rem; color: var(--muted); }
   .found-line strong { color: var(--pink); font-family: var(--mono); }
   .found-line .sep { margin: 0 0.25rem; }
-  .same-word { font-size: 0.88rem; background: var(--panel-2); border-radius: 10px; padding: 0.45rem 0.65rem; }
   .room-back { background: none; border: 0; padding: 0.2rem 0; margin: 0 0 4px; font-weight: 700; color: var(--muted); display: inline-flex; align-items: center; gap: 0.3rem; }
-  .room-cta {
-    display: flex; align-items: center; gap: 0.75rem; width: 100%; margin: 4px 0 12px; padding: 0.6rem 0.9rem; text-align: left;
-    background: linear-gradient(100deg, var(--sun-a), var(--pink)); border: 2px solid var(--line); border-radius: 16px;
-    box-shadow: var(--shadow-sm); color: #2a1440; rotate: -0.5deg; transition: translate 0.1s;
+  .choose { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 4px; }
+  .mode-card {
+    position: relative; display: grid; align-content: start; gap: 0.15rem; min-width: 0; padding: 0.7rem 0.8rem 0.65rem; text-align: left;
+    border: 2px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-sm); color: #2a1440; transition: translate 0.1s;
   }
-  /* same look as the "dernière room" card of the rooms hub */
-  .room-cta .cta-emoji, .room-cta .install-arrow { color: #2a1440; }
-  .room-cta .cta-text small { color: #2a1440; opacity: 0.75; }
-  .room-cta:active { translate: 2px 2px; box-shadow: none; }
-  .cta-emoji, .bug-emoji { display: inline-flex; color: var(--pink); }
+  /* colours: solo = lavender, rooms = sunny yellow (teal stays for collab, orange→pink for défi) */
+  .mode-card.solo { background: linear-gradient(150deg, #e4dbff, #b9a4ff 55%, #9479f5); rotate: -0.6deg; cursor: pointer; }
+  .mode-card.solo.on { box-shadow: var(--shadow-sm), 0 0 0 3px var(--panel), 0 0 0 5px #9479f5; }
+  .mode-card.multi { background: linear-gradient(150deg, #fff1b8, #ffd66b 55%, #ffb938); rotate: 0.6deg; padding: 0; }
+  .mode-card:active, .mc-main:active { translate: 2px 2px; }
+  .mc-main { display: grid; align-content: start; gap: 0.15rem; width: 100%; padding: 0.7rem 0.8rem 0.3rem; background: none; border: 0; text-align: left; color: inherit; cursor: pointer; }
+  .mc-head { display: flex; align-items: center; gap: 0.3rem; font-family: var(--mono); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; }
+  .mc-ico { display: inline-flex; font-size: 1rem; }
+  .mc-dot { margin-left: auto; width: 9px; height: 9px; border-radius: 50%; background: #2a1440; box-shadow: 0 0 0 3px rgb(255 255 255 / 0.5); }
+  .mc-title { font-weight: 900; font-size: 1.02rem; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 0.2rem; }
+  .mc-line { display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; font-weight: 600; min-height: 1.2em; }
+  .mc-foot { display: inline-flex; align-items: center; gap: 0.25rem; margin-top: 0.3rem; font-size: 0.78rem; font-weight: 800; }
+  .mc-all { display: block; width: 100%; padding: 0 0.8rem 0.6rem; background: none; border: 0; text-align: left; font-size: 0.72rem; font-weight: 700; color: #2a1440; opacity: 0.7; text-decoration: underline; cursor: pointer; }
+  .live { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e; flex: none; }
+  .mc-below { margin: 0.5rem 0 0.4rem; text-align: center; font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--muted); }
+  @media (max-width: 360px) { .choose { grid-template-columns: 1fr; } }
+  .bug-emoji { display: inline-flex; color: var(--pink); }
   .home { color: inherit; text-decoration: none; }
-  .cta-text { flex: 1; display: grid; line-height: 1.25; }
-  .cta-text strong { font-size: 1rem; }
-  .cta-text small { color: var(--muted); font-size: 0.8rem; }
 
   .room-dialog form { display: grid; gap: 0.75rem; margin-top: 0.8rem; justify-content: stretch; }
   .room-dialog label { display: grid; gap: 0.3rem; font-weight: 600; font-size: 0.85rem; }

@@ -102,7 +102,8 @@ export const roomReveal = (lang: string, s: Session, round: number) =>
 export interface PastRound {
   round: number;
   word: string | null;
-  players: { name: string; status: PlayerRound["status"]; tries: number; hints: number; place: number | null; guesses: { word: string; rank: number; hint: boolean }[] }[];
+  players: { name: string; status: PlayerRound["status"]; tries: number; hints: number; place: number | null }[];
+  words: { word: string; rank: number; by: { name: string; n: number; hint: boolean }[] }[]; // closest first
 }
 export const roomHistory = (lang: string, s: Session, before?: number) =>
   call<{ rounds: PastRound[]; more: boolean }>(lang, `/${s.code}/history?token=${s.token}${before ? `&before=${before}` : ""}`);

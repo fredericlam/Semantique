@@ -265,3 +265,6 @@ dialog h2 {
   .fx-corner, .fx-stamp, .fx-jude, .fx-bubble, .fx-arm, .fx-corner * { animation: none !important; }
   .fx-rays, .fx-flash { display: none; }
 }
+
+/* animatable angle for the word box's turning border (App.svelte, .wordbox) */
+@property --wb-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
