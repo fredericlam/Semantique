@@ -779,6 +779,13 @@
 
 
     <section class="console">
+      {#if session && snap?.bonus && snap.theme && round === snap.round}
+        {@const [emoji, ...name] = snap.theme.split(" ")}
+        <div class="theme-badge">
+          <span class="tb-emoji" aria-hidden="true">{emoji}</span>
+          <span class="tb-text"><small>🎈 mot bonus · thème</small><strong>{name.join(" ")}</strong></span>
+        </div>
+      {/if}
       {#if !over}
         <form class="wordbox" class:typing={!!input.trim()} style:--glow={last ? heatColor(temperature(last.rank, meta.vocabSize)) : "#ff3d8b"} onsubmit={(e) => { e.preventDefault(); submit(); }}>
           <span class="wb-ico" aria-hidden="true">{last ? level(last.rank).emoji : "✨"}</span>
@@ -1193,6 +1200,18 @@
     text-shadow: 2px 2px 0 var(--ink), 4px 4px 0 var(--teal), var(--title-glow);
   }
   .end.won { background: linear-gradient(160deg, var(--panel), var(--pink-soft)); }
+  .theme-badge {
+    display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 1rem; border-radius: var(--inner-radius);
+    background: linear-gradient(160deg, #fff7b0, #ffe14d); color: #2a1440;
+    border: 3px solid #2a1440; box-shadow: 4px 4px 0 #2a1440; rotate: -1deg;
+    animation: tb-pop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+  }
+  .tb-emoji { font-size: 2.2rem; line-height: 1; }
+  .tb-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+  .tb-text small { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.75; }
+  .tb-text strong { font-size: 1.45rem; font-weight: 900; }
+  @keyframes tb-pop { from { scale: 0.6; opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .theme-badge { animation: none; } }
   .go.bonus { background: linear-gradient(160deg, #fff7b0, #ffe14d); color: #2a1440; }
   .actions { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin-top: 0.9rem; }
 
