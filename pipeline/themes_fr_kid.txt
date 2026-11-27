@@ -1,0 +1,47 @@
+# Mots bonus des rooms faciles (« encore un mot ! »), rangés par thème.
+# Une ligne « ## <emoji> <nom du thème> », puis les mots (séparés par des espaces ou des retours à la ligne).
+# Les rooms font tourner les thèmes : un mot d'un thème, puis un mot du thème suivant, etc.
+# Un mot absent du vocabulaire du jeu est ignoré (le pipeline le signale) ; un mot ne compte que dans son premier thème.
+
+## 🔦 Stranger Things
+monstre vélo talkie lampe guirlande laboratoire portail ombre araignée tentacule gaufre
+arcade pouvoir démon cave lumière shérif disparition walkman télépathie bicyclette lanterne
+
+## 🍟 Fast-food
+frite hamburger burger ketchup mayonnaise moutarde soda menu plateau cornet glace sandwich pizza
+poulet sauce paille comptoir serveur cornichon oignon salade drive caisse kebab chips dessert
+
+## 🍄 Mario
+champignon plombier tuyau château pièce étoile tortue carapace kart moustache casquette brique
+couronne reine banane bloc lave dinosaure saut
+
+## 🧸 Squishies
+mousse peluche licorne pâte panda doudou fraise avocat nuage jouet collection paillette
+pastèque kiwi boule muffin cookie
+
+## 🪄 Magie
+sorcier baguette balai chouette potion chaudron grimoire sortilège cape hibou dragon bougie
+
+## ⛏️ Jeux vidéo
+diamant pioche zombie squelette épée bouclier manette console écran joystick cube mine coffre
+
+## 🎄 Noël
+renne traîneau sapin cadeau lutin flocon bonhomme chaussette cheminée bûche
+
+## 🐬 Océan
+dauphin requin baleine pieuvre méduse corail plongée sirène crabe coquillage phoque pingouin
+
+## 🚀 Espace
+fusée planète astronaute lune comète extraterrestre robot galaxie soleil satellite météorite
+
+## 🎤 Musique et danse
+danse micro scène concert costume chanson guitare star karaoké batterie piano
+
+## ⚽ Sport
+ballon gardien but maillot stade arbitre médaille gymnastique équipe trophée
+
+## 🐾 Animaux mignons
+chiot chaton hamster poney perroquet tigre singe girafe koala loutre hérisson renard
+
+## 🎃 Frissons
+vampire fantôme citrouille bonbon momie masque

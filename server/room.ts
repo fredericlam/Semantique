@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { gameData, nextHintRank, roundAt, type Entry, type Lang } from "./data.ts";
+import { BONUS, gameData, nextHintRank, roundAt, type Entry, type Lang } from "./data.ts";
 import type { Env } from "./env.ts";
 
 /**
@@ -12,7 +12,7 @@ const EXPIRY_MS = 30 * 24 * 3600 * 1000; // rooms vanish after 30 days without a
 const ADMINS = ["fred"];
 const POINTS = [5, 3, 2]; // 1st, 2nd, 3rd to find; then 1; +1 without hints
 
-export type RoomError = { error: "not_found" | "taken" | "bad_name" | "auth" | "unknown_word" | "finished" | "no_hint" | "locked" | "no_data" | "forbidden" | "not_given_up" | "kicked" };
+export type RoomError = { error: "not_found" | "taken" | "bad_name" | "auth" | "unknown_word" | "finished" | "no_hint" | "locked" | "no_data" | "forbidden" | "not_given_up" | "kicked" | "no_bonus" };
 export type Visibility = "public" | "private";
 /** défi: everyone plays alone, words hidden; collab: one shared game, everyone sees every word. */
 export type Mode = "defi" | "collab";
@@ -34,7 +34,9 @@ export interface Snapshot {
   level: string;
   owner: string | null; // display name of the creator, who can change the visibility
   admins: string[]; // display names of the players who can remove anyone
-  round: number;
+  round: number; // the round played right now: the word of the hour, or a bonus word
+  bonus: number | null; // a bonus word is being played: the round of the hour it was launched in
+  theme: string | null; // and its theme ("🍄 Mario")
   players: { name: string; online: boolean; now: PlayerRound | null; points: number; wins: number }[];
 }
 
@@ -43,6 +45,9 @@ export interface PastRound {
   word: string | null;
   players: { name: string; status: PlayerRound["status"]; tries: number; hints: number; place: number | null }[];
   words: { word: string; rank: number; by: { name: string; n: number; hint: boolean }[] }[]; // closest first
+  at: number; // last word proposed (pagination)
+  bonus: number | null; // played as a bonus word during that round of the hour
+  theme: string | null; // its theme
 }
 
 export interface RoomGuess extends Entry {
@@ -68,6 +73,7 @@ export class Room extends DurableObject<Env> {
       CREATE TABLE IF NOT EXISTS results (
         round INTEGER, player TEXT, status TEXT, tries INTEGER, hints INTEGER, best INTEGER, finished INTEGER,
         PRIMARY KEY (round, player));
+      CREATE TABLE IF NOT EXISTS bonus (round INTEGER PRIMARY KEY, base INTEGER NOT NULL, at INTEGER NOT NULL);
     `);
   }
 
@@ -83,6 +89,13 @@ export class Room extends DurableObject<Env> {
   private async lang(): Promise<Lang | null> {
     const code = this.meta("lang");
     return code ? gameData(this.env.DATA).lang(code) : null;
+  }
+
+  /** The round played right now: a bonus word launched during this hour, otherwise the word of the hour. */
+  private active(L: Lang): { round: number; bonus: number | null } {
+    const hour = roundAt(L.meta);
+    const b = this.sql.exec<{ round: number }>("SELECT round FROM bonus WHERE base = ? ORDER BY at DESC LIMIT 1", hour).toArray()[0];
+    return b ? { round: b.round, bonus: hour } : { round: hour, bonus: null };
   }
 
   private player(token: string | undefined): { key: string; name: string } | null {
@@ -108,7 +121,7 @@ export class Room extends DurableObject<Env> {
   private async snapshot(): Promise<Snapshot | null> {
     const L = await this.lang();
     if (!L) return null;
-    const round = roundAt(L.meta);
+    const { round, bonus } = this.active(L);
     const points = new Map<string, number>();
     const wins = new Map<string, number>();
     let cur = -1, place = 0;
@@ -136,7 +149,13 @@ export class Room extends DurableObject<Env> {
     const ownerKey = this.meta("owner");
     const owner = ownerKey ? (this.sql.exec<{ name: string }>("SELECT name FROM players WHERE key = ?", ownerKey).toArray()[0]?.name ?? null) : null;
     const admins = players.filter((p) => ADMINS.includes(nameKey(p.name))).map((p) => p.name);
-    return { code, name: this.meta("name") || `Room ${code}`, visibility: this.visibility(), mode: this.mode(), level: this.level(L), owner, admins, round, players };
+    return { code, name: this.meta("name") || `Room ${code}`, visibility: this.visibility(), mode: this.mode(), level: this.level(L), owner, admins, round, bonus, theme: bonus ? await this.themeOf(L, round) : null, players };
+  }
+
+  private async themeOf(L: Lang, round: number): Promise<string | null> {
+    if (round <= BONUS) return null;
+    const B = await gameData(this.env.DATA).bonus(L);
+    return B?.themes[B.theme[round - BONUS - 1]] ?? null;
   }
 
   /** Rooms created before levels existed play the default (adult) level. */
@@ -261,7 +280,7 @@ export class Room extends DurableObject<Env> {
     const me = this.player(token);
     const L = await this.lang();
     if (!me || !L) return { error: "auth" };
-    const n = round ?? roundAt(L.meta);
+    const n = round ?? this.active(L).round;
     if (this.mode() === "collab")
       return { round: n, guesses: this.teamGuesses(n), status: this.teamWon(n) ? "won" : this.result(n, me.key)?.status ?? "playing" };
     const guesses = this.sql.exec<{ id: number; word: string; rank: number; cos: number; hint: number; n: number }>(
@@ -274,7 +293,7 @@ export class Room extends DurableObject<Env> {
     const me = this.player(token);
     const L = await this.lang();
     if (!me || !L) return { error: "auth" };
-    const round = roundAt(L.meta);
+    const round = this.active(L).round;
     const collab = this.mode() === "collab";
     const res = this.result(round, me.key);
     if (res?.status === "won" || (!collab && res && res.status !== "playing") || (collab && this.teamWon(round))) return { error: "finished" };
@@ -334,7 +353,7 @@ export class Room extends DurableObject<Env> {
     const me = this.player(token);
     const L = await this.lang();
     if (!me || !L) return { error: "auth" };
-    const round = roundAt(L.meta);
+    const round = this.active(L).round;
     const res = this.result(round, me.key);
     if (res && res.status !== "playing") return { error: "finished" };
     this.sql.exec(`
@@ -374,12 +393,48 @@ export class Room extends DurableObject<Env> {
     const me = this.player(token);
     const L = await this.lang();
     if (!me || !L) return { error: "auth" };
-    const round = roundAt(L.meta);
+    const round = this.active(L).round;
     if (this.result(round, me.key)?.status !== "gaveup") return { error: "not_given_up" };
     this.sql.exec("UPDATE results SET status = 'playing', finished = NULL WHERE round = ? AND player = ?", round, me.key);
     await this.broadcast();
     this.event(`↩️ ${me.name} reprend la partie`);
     return { ok: true };
+  }
+
+  /**
+   * Easy rooms: once I'm done with the word (found, or given up), launch another one right away for the
+   * whole room: the next themed bonus word (themes in turn: Stranger Things, fast-food, Mario…), never played
+   * in this room. It lasts until the next word of the hour.
+   */
+  async bonus(token: string): Promise<{ round: number } | RoomError> {
+    const me = this.player(token);
+    const L = await this.lang();
+    if (!me || !L) return { error: "auth" };
+    if (this.level(L) !== "kid") return { error: "forbidden" };
+    const { round } = this.active(L);
+    const done = this.result(round, me.key)?.status;
+    const finished = done === "won" || done === "gaveup" || (this.mode() === "collab" && this.teamWon(round));
+    if (!finished) return { round }; // someone else just launched one: play it
+    const hour = roundAt(L.meta);
+    const data = gameData(this.env.DATA);
+    const [B, kid] = await Promise.all([data.bonus(L), data.schedule(L, "kid")]);
+    if (!B || !kid) return { error: "no_data" };
+    const played = this.sql.exec<{ round: number }>("SELECT round FROM bonus WHERE round > ? ORDER BY at", BONUS).toArray().map((r) => r.round);
+    const seen = new Set(played.map((r) => B.words[r - BONUS - 1]));
+    for (const r of this.sql.exec<{ round: number }>("SELECT DISTINCT round FROM guesses WHERE round <= ?", hour)) seen.add(kid[r.round - 1]);
+    // carry on the rotation after the last bonus word played here
+    const from = played.length ? played[played.length - 1] - BONUS : 0;
+    let next = 0;
+    for (let k = 0; k < B.words.length && !next; k++) {
+      const i = (from + k) % B.words.length;
+      if (!seen.has(B.words[i])) next = BONUS + i + 1;
+    }
+    if (!next) return { error: "no_bonus" };
+    this.sql.exec("INSERT INTO bonus (round, base, at) VALUES (?, ?, ?)", next, hour, Date.now());
+    this.touch();
+    await this.broadcast();
+    this.event(`🎈 ${me.name} lance un mot bonus : ${await this.themeOf(L, next)} !`);
+    return { round: next };
   }
 
   /** Anyone in the room can switch between défi and collaboratif, effective immediately. */
@@ -469,7 +524,10 @@ export class Room extends DurableObject<Env> {
     const me = this.player(token);
     const L = await this.lang();
     if (!me || !L) return { error: "auth" };
-    const unlocked = this.result(round, me.key)?.status === "won" || (this.mode() === "collab" && this.teamWon(round));
+    const mine = this.result(round, me.key)?.status;
+    const isBonus = this.sql.exec("SELECT 1 FROM bonus WHERE round = ?", round).toArray().length > 0;
+    const unlocked = mine === "won" || (this.mode() === "collab" && this.teamWon(round))
+      || (isBonus && (mine === "gaveup" || round !== this.active(L).round)); // a bonus word: giving up shows it right away, and it's open once over
     if (round >= roundAt(L.meta) && !unlocked) return { error: "locked" };
     const r = await gameData(this.env.DATA).round(L, round, this.level(L));
     if (!r) return { error: "no_data" };
@@ -490,11 +548,17 @@ export class Room extends DurableObject<Env> {
     const me = this.player(token);
     const L = await this.lang();
     if (!me || !L) return { error: "auth" };
-    const current = roundAt(L.meta);
-    const top = Math.min(current, before ?? current) - 1;
-    const list = this.sql.exec<{ round: number }>(
-      "SELECT DISTINCT round FROM guesses WHERE round <= ? ORDER BY round DESC LIMIT ?", top, limit + 1).toArray().map((r) => r.round);
-    const words = await gameData(this.env.DATA).schedule(L, this.level(L));
+    const current = this.active(L).round, hour = roundAt(L.meta);
+    // most recently played first; the word of the hour stays out until it's over, even while a bonus word is played; before = last activity of the previous page
+    const listed = this.sql.exec<{ round: number; at: number }>(
+      `SELECT round, MAX(at) AS at FROM guesses WHERE round <> ? AND (round < ? OR round IN (SELECT round FROM bonus)) GROUP BY round
+       HAVING MAX(at) < ? ORDER BY MAX(at) DESC LIMIT ?`, current, hour, before ?? Number.MAX_SAFE_INTEGER, limit + 1).toArray();
+    const list = listed.map((r) => r.round);
+    const lastAt = new Map(listed.map((r) => [r.round, r.at]));
+    const bases = new Map(this.sql.exec<{ round: number; base: number }>("SELECT round, base FROM bonus").toArray().map((b) => [b.round, b.base]));
+    const data = gameData(this.env.DATA), level = this.level(L);
+    const secret = new Map(await Promise.all(list.map(async (r) => [r, await data.word(L, r, level)] as const)));
+    const themes = new Map(await Promise.all(list.map(async (r) => [r, await this.themeOf(L, r)] as const)));
     const people = this.sql.exec<{ key: string; name: string }>("SELECT key, name FROM players").toArray();
     const nameOf = new Map(people.map((p) => [p.key, p.name]));
     const rounds = list.slice(0, limit).map((round): PastRound => {
@@ -513,7 +577,7 @@ export class Room extends DurableObject<Env> {
         return res ? { name: p.name, status: res.status, tries: res.tries, hints: res.hints, place: res.place } : null;
       }).filter((p) => p !== null)
         .sort((a, b) => (a.place ?? Infinity) - (b.place ?? Infinity) || a.tries - b.tries);
-      return { round, word: words?.[round - 1] ?? null, players, words: [...byWord.values()] };
+      return { round, word: secret.get(round) ?? null, players, words: [...byWord.values()], at: lastAt.get(round) ?? 0, bonus: bases.get(round) ?? null, theme: themes.get(round) ?? null };
     });
     return { rounds, more: list.length > limit };
   }

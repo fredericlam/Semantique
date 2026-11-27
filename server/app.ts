@@ -16,7 +16,7 @@ const validCode = (c: string) => new RegExp(`^[${CODE_ALPHABET}]{5}$`).test(c);
 
 const ERROR_STATUS: Record<RoomError["error"], 400 | 401 | 403 | 404 | 409 | 500> = {
   not_found: 404, taken: 409, bad_name: 400, auth: 401, unknown_word: 404, finished: 409, no_hint: 409, locked: 403, no_data: 500,
-  forbidden: 403, not_given_up: 409, kicked: 403,
+  forbidden: 403, not_given_up: 409, kicked: 403, no_bonus: 409,
 };
 const cleanPseudo = (s: unknown) => String(s ?? "").normalize("NFC").trim().replace(/\s+/g, " ").slice(0, 20);
 const isError = (x: unknown): x is RoomError => typeof x === "object" && x !== null && "error" in x;
@@ -36,14 +36,16 @@ export function createApp() {
     return "url" in res ? c.json(res, 201) : c.json({ error: res.error, repo: c.env.GITHUB_REPO ?? null }, res.status as 502 | 503);
   });
 
-  /** Resolve :lang and ?round= (defaults to the current one; future rounds are refused). */
+  /** Resolve :lang and ?round= (defaults to the current one; future rounds are refused, except inside a room). */
   app.use("/:lang/*", async (c, next) => {
     const L = await gameData(c.env.DATA).lang(c.req.param("lang"));
     if (!L) return c.json({ error: "unknown language" }, 404);
     const current = roundAt(L.meta);
     const q = c.req.query("round");
     const n = q ? Number(q) : current;
-    if (!Number.isInteger(n) || n < 1 || n > current) return c.json({ error: "round not available", current }, 404);
+    // rooms check rounds themselves (an easy room may play a bonus word from further down the schedule)
+    const inRoom = /\/rooms\/[^/]+\/(mine|reveal)$/.test(c.req.path);
+    if (!Number.isInteger(n) || n < 1 || (n > current && !inRoom)) return c.json({ error: "round not available", current }, 404);
     c.set("L", L);
     c.set("n", n);
     c.set("current", current);
@@ -235,6 +237,11 @@ export function createApp() {
   app.post("/:lang/rooms/:code/resume", async (c) => {
     const { token } = await c.req.json<{ token: string }>();
     return reply(c, await room(c).resume(token));
+  });
+
+  app.post("/:lang/rooms/:code/bonus", async (c) => {
+    const { token } = await c.req.json<{ token: string }>();
+    return reply(c, await room(c).bonus(token));
   });
 
   app.post("/:lang/rooms/:code/mode", async (c) => {

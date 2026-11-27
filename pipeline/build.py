@@ -185,6 +185,53 @@ def write_rounds(dir_: Path, secrets: list[str], vocab: list[str], M: np.ndarray
         (dir_ / f"{c0 // CHUNK:04d}.bin").write_bytes(b"".join(parts))
 
 
+def read_themes(lang: Language, vocab_set: set[str]) -> list[tuple[str, list[str]]]:
+    """pipeline/themes_<lang>_kid.txt: '## <emoji> <name>' headers, then words."""
+    f = Path(__file__).parent / f"themes_{lang.code}_kid.txt"
+    if not f.exists():
+        return []
+    themes, seen, missing = [], set(), []
+    for line in f.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line.startswith("##"):
+            themes.append((line[2:].strip(), []))
+        elif line and not line.startswith("#") and themes:
+            for w in line.split():
+                if w not in vocab_set:
+                    missing.append(w)
+                elif w not in seen:
+                    seen.add(w)
+                    themes[-1][1].append(w)
+    if missing:
+        print(f"  [bonus] not in the vocabulary, skipped: {' '.join(missing)}")
+    return [t for t in themes if t[1]]
+
+
+def write_bonus(lang: Language, priv: Path, vocab: list[str], M: np.ndarray) -> None:
+    """Bonus words of the easy rooms: the themes taken in turn (one word of each, then again),
+    each theme in a shuffled order. Rooms walk this list; it can be rebuilt freely (rooms keep the words they played)."""
+    themes = read_themes(lang, set(vocab))
+    if not themes:
+        return
+    rng = random.Random(f"{secret_seed()}:{lang.code}:bonus")
+    queues = [rng.sample(words, len(words)) for _, words in themes]
+    words, theme = [], []
+    while any(queues):
+        for i, q in enumerate(queues):
+            if q:
+                words.append(q.pop(0))
+                theme.append(i)
+    d = priv / "bonus"
+    d.mkdir(parents=True, exist_ok=True)
+    if (d / "rounds").exists():
+        for f in (d / "rounds").iterdir():
+            f.unlink()
+    (d / "schedule.json").write_text(json.dumps(
+        {"themes": [name for name, _ in themes], "words": words, "theme": theme}, ensure_ascii=False, indent=0), encoding="utf-8")
+    write_rounds(d / "rounds", words, vocab, M)
+    print(f"  [bonus] {len(themes)} themes, {len(words)} words")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("lang", choices=sorted(LANGUAGES))
@@ -195,6 +242,8 @@ def main() -> None:
                          "with the current filters, e.g. kid:73. Words already played never change.")
     ap.add_argument("--start", default=None,
                     help="ISO datetime of round 1, e.g. 2026-11-20T00:00:00+01:00 (first build only)")
+    ap.add_argument("--bonus-only", action="store_true",
+                    help="only rebuild the bonus words of the easy rooms (pipeline/themes_<lang>_kid.txt)")
     args = ap.parse_args()
 
     lang = LANGUAGES[args.lang]
@@ -219,6 +268,11 @@ def main() -> None:
     M /= np.linalg.norm(M, axis=1, keepdims=True)
     assert len(vocab) < 65535
     print(f"  vocab {len(vocab)} words, dim {M.shape[1]}")
+
+    if args.bonus_only:
+        print("5/5 bonus words"); write_bonus(lang, priv, vocab, M)
+        print(f"done → {priv / 'bonus'}")
+        return
 
     forms, loose = build_forms(vocab, freq, form_lemmas)
     print(f"  {len(forms)} inflected forms, {len(loose)} accentless keys")
@@ -271,6 +325,8 @@ def main() -> None:
         sched_path.write_text(json.dumps({"start": start, "period": period, "words": secrets}, ensure_ascii=False, indent=0))
         write_rounds(priv / name / "rounds", secrets, vocab, M)
         rounds_per_level[name] = len(secrets)
+
+    write_bonus(lang, priv, vocab, M)
 
     meta = {
         "lang": lang.code, "timezone": lang.timezone,

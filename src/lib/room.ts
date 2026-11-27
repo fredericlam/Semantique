@@ -21,7 +21,9 @@ export interface Snapshot {
   level: string;
   owner: string | null;
   admins?: string[]; // players who can remove anyone
-  round: number;
+  round: number; // the word played right now (the word of the hour, or a bonus word)
+  bonus?: number | null; // a bonus word is being played (easy rooms)
+  theme?: string | null; // its theme
   players: { name: string; online: boolean; now: PlayerRound | null; points: number; wins: number }[];
 }
 
@@ -44,6 +46,7 @@ export const ROOM_ERRORS: Record<string, string> = {
   locked: "Le mot sera révélé quand il changera (toutes les 3 heures).",
   forbidden: "Seul·e le créateur ou la créatrice de la room (ou un admin) peut faire ça.",
   not_given_up: "Tu n'as pas abandonné cette manche.",
+  no_bonus: "Plus de mot bonus en réserve : rendez-vous au prochain mot !",
   kicked: "Tu as été retiré·e de cette room par son créateur ou sa créatrice.",
 };
 
@@ -84,6 +87,7 @@ export const roomRename = (lang: string, s: Session, name: string) =>
   call<{ token: string; name: string }>(lang, `/${s.code}/rename`, { token: s.token, name });
 export const roomSetMode = (lang: string, s: Session, mode: Mode) => call<{ ok: true }>(lang, `/${s.code}/mode`, { token: s.token, mode });
 export const roomResume = (lang: string, s: Session) => call<{ ok: true }>(lang, `/${s.code}/resume`, { token: s.token });
+export const roomBonus = (lang: string, s: Session) => call<{ round: number }>(lang, `/${s.code}/bonus`, { token: s.token });
 export const roomKick = (lang: string, s: Session, name: string) => call<{ ok: true }>(lang, `/${s.code}/kick`, { token: s.token, name });
 export const roomLeave = (lang: string, s: Session) => call<{ ok: true }>(lang, `/${s.code}/leave`, { token: s.token });
 export const roomSetName = (lang: string, s: Session, name: string) => call<{ name: string }>(lang, `/${s.code}/name`, { token: s.token, name });
@@ -105,6 +109,9 @@ export interface PastRound {
   word: string | null;
   players: { name: string; status: PlayerRound["status"]; tries: number; hints: number; place: number | null }[];
   words: { word: string; rank: number; by: { name: string; n: number; hint: boolean }[] }[]; // closest first
+  at: number; // last word proposed (pagination)
+  bonus: number | null; // played as a bonus word during that round of the hour
+  theme?: string | null;
 }
 export const roomHistory = (lang: string, s: Session, before?: number) =>
   call<{ rounds: PastRound[]; more: boolean }>(lang, `/${s.code}/history?token=${s.token}${before ? `&before=${before}` : ""}`);

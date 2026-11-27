@@ -60,10 +60,15 @@ export function nextHintRank(ranks: number[], level = "adult"): number | null {
 
 const dec = new TextDecoder();
 
+/** Rounds above this are the bonus words of the easy rooms (private/bonus), not words of the hour. */
+export const BONUS = 100_000;
+export interface BonusWords { themes: string[]; words: string[]; theme: number[] }
+
 export class GameData {
   private langs = new Map<string, Promise<Lang | null>>();
   private rounds = new Map<string, Promise<Round | null>>();
   private schedules = new Map<string, Promise<string[] | null>>();
+  private bonuses = new Map<string, Promise<BonusWords | null>>();
 
   constructor(private store: Store) {}
 
@@ -91,6 +96,7 @@ export class GameData {
   }
 
   round(L: Lang, n: number, level: string): Promise<Round | null> {
+    if (n > BONUS) [n, level] = [n - BONUS, "bonus"];
     const key = `${L.meta.lang}/${level}/${n}`;
     if (!this.rounds.has(key)) {
       const V = L.words.length;
@@ -121,6 +127,23 @@ export class GameData {
       this.schedules.set(key, p);
     }
     return this.schedules.get(key)!;
+  }
+
+  /** Themed bonus words of the easy rooms, themes taken in turn. */
+  bonus(L: Lang): Promise<BonusWords | null> {
+    const key = L.meta.lang;
+    if (!this.bonuses.has(key)) {
+      const p = this.store.get(`${key}/private/bonus/schedule.json`).then((b) => (b ? (JSON.parse(dec.decode(b)) as BonusWords) : null));
+      p.then((v) => v ?? this.bonuses.delete(key));
+      this.bonuses.set(key, p);
+    }
+    return this.bonuses.get(key)!;
+  }
+
+  /** The secret word of a round (a word of the hour or a bonus word). Never send a current or future one to a client. */
+  async word(L: Lang, n: number, level: string): Promise<string | null> {
+    if (n > BONUS) return (await this.bonus(L))?.words[n - BONUS - 1] ?? null;
+    return (await this.schedule(L, level))?.[n - 1] ?? null;
   }
 
   entry(L: Lang, r: Round, id: number): Entry {

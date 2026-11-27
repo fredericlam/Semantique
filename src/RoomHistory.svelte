@@ -41,7 +41,7 @@
       {@const winners = r.players.filter((p) => p.status === "won").length}
       <details class="game" ontoggle={(e) => (e.currentTarget as HTMLDetailsElement).open && reveal(r.round)}>
         <summary>
-          <span class="when">{label(r.round)}</span>
+          <span class="when">{r.bonus ? `🎈 ${r.theme ?? label(r.bonus)}` : label(r.round)}</span>
           {#if visible(r)}
             <span class="word">{r.word ?? "?"}</span>
           {:else}
@@ -80,7 +80,7 @@
       </details>
     {/each}
     {#if more}
-      <button class="more" disabled={busy} onclick={() => load(rounds.at(-1)?.round)}>{busy ? "…" : "parties plus anciennes"}</button>
+      <button class="more" disabled={busy} onclick={() => load(rounds.at(-1)?.at)}>{busy ? "…" : "parties plus anciennes"}</button>
     {/if}
   </section>
 {/if}

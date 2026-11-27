@@ -16,7 +16,7 @@
   import HistoryList from "./HistoryList.svelte";
   import {
     cleanCode, connect, createRoom, joinRoom, lastName, lastRoom, roomGiveUp, roomGuess, roomHint, roomMine, roomResume,
-    roomReveal, roomSetVisibility, roomSetName, roomKick, forgetRoom, RoomError, roomState, savedSession, saveSession, rememberRoom, myRooms, roomRename, roomSetMode, type RoomGuess, type Session, type Snapshot, type Visibility,
+    roomReveal, roomSetVisibility, roomSetName, roomKick, roomBonus, forgetRoom, RoomError, roomState, savedSession, saveSession, rememberRoom, myRooms, roomRename, roomSetMode, type RoomGuess, type Session, type Snapshot, type Visibility,
   } from "./lib/room.ts";
   import { clean, loadLexicon, resolve, type Lexicon } from "./lib/lexicon.ts";
   import { LEVELS, heatColor, level, temperature } from "./lib/heat.ts";
@@ -69,10 +69,7 @@
   let joinName = $state("");
   let roomName = $state("");
   let roomVisibility = $state<Visibility>("public");
-  const savedLevel = () => SHOW_LEVELS ? (() => { try { return localStorage.getItem("semantique:level") ?? "adult"; } catch { return "adult"; } })() : "adult";
-  let soloLevel = $state<string>(savedLevel());
-  /** Bonus word (easy rooms): an older easy word played alone right after finding the room's word; the code of the room to go back to. */
-  let bonusFrom = $state<string | null>(null);
+  let soloLevel = $state<string>(SHOW_LEVELS ? (() => { try { return localStorage.getItem("semantique:level") ?? "adult"; } catch { return "adult"; } })() : "adult");
   let createLevel = $state("adult");
   /** In a room, its level; otherwise the one picked on this device. */
   const playLevel = $derived(session && snap ? snap.level : soloLevel);
@@ -173,7 +170,8 @@
 
   async function goToLatest() {
     meta = await fetchMeta(LANG);
-    await openRound(meta.current);
+    if (session) snap = await roomState(LANG, session.code); // a bonus word ends with the hour
+    await openRound(session && snap ? snap.round : meta.current);
     await tick();
     inputEl?.focus();
   }
@@ -224,7 +222,6 @@
   }
 
   async function enterRoom(s: Session) {
-    endBonus();
     disconnect?.();
     session = s;
     saveSession(s);
@@ -235,7 +232,24 @@
     rememberRoom(s.code, { roomName: snap.name, level: snap.level });
     disconnect = connect(LANG, s, liveHandlers());
     meta = await fetchMeta(LANG);
-    await openRound(meta.current);
+    await openRound(snap.round);
+  }
+
+  /** Easy rooms: once done with the word, another (older, never played here) word right away, for the whole room. */
+  async function playBonus() {
+    if (!session) return;
+    busy = true;
+    try {
+      const { round: n } = await roomBonus(LANG, session);
+      if (n !== round) await openRound(n);
+      await tick();
+      inputEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+      inputEl?.focus({ preventScroll: true });
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      busy = false;
+    }
   }
 
   async function submitJoin(create: boolean) {
@@ -294,47 +308,14 @@
     roomWords = [];
   }
 
-  /** Out of the bonus words: back to the solo level of this device. */
-  function endBonus() {
-    if (!bonusFrom) return false;
-    bonusFrom = null;
-    soloLevel = savedLevel();
-    return true;
-  }
-
-  /** Easy rooms: another word right away, picked among the older easy words not finished on this device. */
-  async function playBonus() {
-    const from = bonusFrom ?? session?.code;
-    if (!meta || !from) return;
-    const fresh: number[] = [], started: number[] = [];
-    for (let n = 1; n < meta.current; n++) {
-      const st = loadState(LANG, "kid", n);
-      if (st.status !== "playing") continue;
-      (st.guesses.length ? started : fresh).push(n);
-    }
-    const pool = fresh.length ? fresh : started;
-    if (!pool.length) return toast("Plus de mot bonus pour l'instant, reviens au prochain mot !");
-    const n = pool[Math.floor(Math.random() * pool.length)];
-    if (session) closeRoom();
-    bonusFrom = from;
-    soloLevel = "kid";
-    page = "game";
-    if (location.pathname !== "/solo") history.pushState(null, "", "/solo");
-    await openRound(n);
-    scrollTo({ top: 0 });
-    await tick();
-    inputEl?.focus({ preventScroll: true });
-  }
-
   async function goPage(p: "home" | "game" | "rooms", push = true) {
     const wasRoom = !!session;
-    const wasBonus = endBonus();
     if (wasRoom) closeRoom();
     page = p;
     const path = p === "rooms" ? "/rooms" : p === "game" ? "/solo" : "/";
     if (push && location.pathname !== path) history.pushState(null, "", path);
     scrollTo({ top: 0 });
-    if (p === "game" && meta && (wasRoom || wasBonus)) await openRound(meta.current); // back to the solo game
+    if (p === "game" && meta && wasRoom) await openRound(meta.current); // back to the solo game
   }
 
   onMount(() => {
@@ -403,10 +384,12 @@
   function liveHandlers() {
     return {
       snapshot: (x: Snapshot) => {
-        const modeChanged = snap && snap.code === x.code && snap.mode !== x.mode;
+        const same = snap && snap.code === x.code;
+        const modeChanged = same && snap!.mode !== x.mode;
+        const roundChanged = same && snap!.round !== x.round && round !== x.round; // a bonus word was launched
         snap = x;
         rememberRoom(x.code, { roomName: x.name, level: x.level });
-        if (modeChanged && meta) openRound(round); // switch between my own words and the shared ones
+        if ((modeChanged || roundChanged) && meta) openRound(roundChanged ? x.round : round); // switch between my own words and the shared ones
       },
       event: toast,
       status: (v: boolean) => (connected = v),
@@ -530,7 +513,7 @@
       const me = session?.name ?? lastName();
       celebrate(guess.word, { tries: game.guesses.filter((o) => !o.hint).length, sweetheart: isSweetheart(me) ? me : null });
       finish("won");
-      if (!fromTeammate && !bonusFrom) { // bonus words are older rounds: not counted
+      if (!fromTeammate && !(session && snap?.bonus)) { // room bonus words are older rounds: not counted
         const mine = game.guesses.filter((o) => !o.by || o.by === session?.name); // collab: only my own words
         const played = { tries: mine.filter((o) => !o.hint).length, hints: mine.filter((o) => o.hint).length };
         reportFound(LANG, playLevel, round, guess.word, played).then((s) => s && (foundStats = s));
@@ -549,7 +532,8 @@
   async function loadTop() {
     if (game.status === "playing" || !meta) return;
     const found = game.guesses.find((g) => g.rank === 0)?.word;
-    if (!found && round >= meta.current) return;
+    const bonusWord = !!(session && snap?.bonus && round === snap.round); // given up: shown right away
+    if (!found && round >= meta.current && !bonusWord) return;
     if (session) {
       try {
         const r = await roomReveal(LANG, session, round);
@@ -636,7 +620,7 @@
 
   function shareText() {
     const counts = LEVELS.slice(1).map((l) => [l, game.guesses.filter((g) => !g.hint && level(g.rank) === l).length] as const);
-    const label = `Sémantique 🌴 mot de ${roundLabel(round)}${SHOW_LEVELS || isSpecialLevel(playLevel) ? ` · ${levelLabel(playLevel)}` : ""}${session ? ` · room ${snap?.name ?? session.code}` : ""}`;
+    const label = `Sémantique 🌴 ${session && snap?.bonus && round === snap.round ? `mot bonus ${snap.theme ?? ""}` : `mot de ${roundLabel(round)}`}${SHOW_LEVELS || isSpecialLevel(playLevel) ? ` · ${levelLabel(playLevel)}` : ""}${session ? ` · room ${snap?.name ?? session.code}` : ""}`;
     const head = game.status === "won"
       ? `${label} — 🎯 en ${tries} essai${tries > 1 ? "s" : ""}${hints ? ` (${hints} 💡)` : ""}`
       : `${label} — 🏳️ abandon, meilleur ${best && meta ? temperature(best.rank, meta.vocabSize).toFixed(1) : "0"}°`;
@@ -696,8 +680,12 @@
       }} title="Accueil">Sémantique</a></h1>
       {#if meta}
         <span class="day">
+          {#if session && snap?.bonus && round === snap.round}
+            <span class="date">🎈 {snap.theme ?? "mot bonus"}</span><span class="sep">·</span> <span class="timer" title="Jusqu'au prochain mot">⏱ {countdown}</span>
+          {:else}
           <span class="date">{roundDate(round)} - {roundHour(round)}</span>
           {#if round === meta.current}<span class="sep">·</span> <span class="timer" title="Prochain mot dans">⏱ {countdown}</span>{/if}
+          {/if}
         </span>
       {/if}
     </div>
@@ -774,22 +762,15 @@
         {/each}
       </div>
       {/if}
-      {#if bonusFrom}
-      <div class="mode-bar group">
-        <button class="mb-back" onclick={() => bonusFrom && enterSaved(bonusFrom)}><Icon name="arrow-left" /> la room</button>
-        <span class="mb-label"><span class="mb-badge" aria-hidden="true">🎈</span><span class="mb-text"><small>mot bonus</small><strong>facile</strong></span></span>
-      </div>
-      {:else}
       <div class="mode-bar solo">
         <button class="mb-back" onclick={() => goPage("home")}><Icon name="arrow-left" /> accueil</button>
         <span class="mb-label"><span class="mb-badge"><Icon name="user" size="1.3rem" /></span><span class="mb-text"><small>tu joues</small><strong>seul·e</strong></span></span>
         <button class="mb-switch" onclick={() => goPage("rooms")}><Icon name="users" size="1rem" /> à plusieurs</button>
       </div>
-      {/if}
     {/if}
 
-    {#if newWordReady || (round !== meta.current && !bonusFrom)}
-      <button class="banner" onclick={() => (bonusFrom ? enterSaved(bonusFrom) : goToLatest())}>
+    {#if newWordReady || round !== (session && snap ? snap.round : meta.current)}
+      <button class="banner" onclick={goToLatest}>
         <span class="bn-ico" aria-hidden="true">🌴</span>
         <span class="bn-text"><strong>{newWordReady ? "Nouveau mot dispo !" : "Le mot en cours t'attend"}</strong><small>{newWordReady ? "le mot a changé, à toi de jouer" : `mot de ${roundLabel(meta.current)}`}</small></span>
         <span class="bn-go">jouer <Icon name="arrow-right" /></span>
@@ -856,8 +837,8 @@
             <p>ton meilleur : <strong>{best?.word ?? "aucun"}</strong>{best ? ` (n°${best.rank})` : ""}</p>
           {/if}
           <div class="actions">
-            {#if bonusFrom || (session && snap?.level === "kid" && game.status === "won")}
-              <button class="go wide bonus" onclick={playBonus}>🎈 encore un mot !</button>
+            {#if session && snap?.level === "kid" && round === snap.round && !newWordReady}
+              <button class="go wide bonus" onclick={playBonus} disabled={busy}>🎈 encore un mot !</button>
             {/if}
             <button class="go wide" onclick={share}>{copied ? "copié ✓" : "partager"}</button>
             <span class="muted small">prochain mot dans <strong class="mono">{countdown}</strong> ⏱</span>
@@ -938,7 +919,7 @@
     {/if}
 
     {#if session}
-      {#key `${session.code}:${meta.current}`}
+      {#key `${session.code}:${snap?.round ?? meta.current}`}
         <RoomHistory lang={LANG} {session} me={session.name} label={roundLabel} />
       {/key}
     {:else}
